@@ -4,3 +4,6 @@ Retrospective cohort study evaluating associations between postpartum/perinatal 
 ## Goal: Evaluate how postpartum GLP‑1 therapy influences maternal blood pressure (BP) and weight within 12 months postpartum, by:
 - Quantifying continuous changes (median SBP, DBP and weight before vs. after GLP‑1) and
 - Measuring time until clinically meaningful improvements (≥10 mmHg drop in SBP, ≥5 mmHg drop in DBP, >10% weight loss).
+
+## Ideas
+- whether very-early (day 1-30) starters represent a different clinical scenario than late starters.
