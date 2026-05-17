@@ -69,4 +69,3 @@ quick_overview(ecg)
 quick_overview(echo_ef)
 
 
-# something that I noticed, i think you didnt use or didnt extract any data on the past medical history use of Alcohol, smoking data, am I right? should we inspect these datasets? because I want them to include for the demographics and clinical characteristics (pmh: yes/no; smoking: never, former, current; pmh alcohol use: yes/no)

@@ -31,7 +31,7 @@ suppressPackageStartupMessages({
 # --- Path setup ---
 sys_name <- Sys.info()[["sysname"]]
 proj_root <- if (sys_name == "Darwin") {
-  "~/Documents/postpartum-glp1"
+  "/Users/alfredoverastegui/Desktop/Research/VS Code Workbook/MDH Lab/postpartum-glp1"
 } else {
   "C:/Users/M320532/Desktop/Research/MDH Lab/postpartum-glp1"
 }
@@ -557,6 +557,10 @@ ckm_hfpef <- kw_flag(
   dx_lifetime,
   c("heart failure with preserved ejection fraction",
     "preserved ejection fraction heart failure",
+    # Mayo strings include parenthetical "(congestive)"
+    "diastolic.*heart failure",
+    "diastolic .*congestive.*heart failure",
+    "diastolic congestive heart failure",
     "diastolic heart failure"),
   "ckm_hfpef",
   word_boundary_terms = c("hfpef")
@@ -566,7 +570,12 @@ ckm_hfref <- kw_flag(
   dx_lifetime,
   c("heart failure with reduced ejection fraction",
     "reduced ejection fraction heart failure",
-    "systolic heart failure"),
+    # Mayo strings: "Acute on chronic systolic (congestive) heart failure",
+    # "Chronic Systolic (Congestive) Heart Failure"
+    "systolic.*heart failure",
+    "systolic .*congestive.*heart failure",
+    "systolic congestive heart failure",
+    "dilated cardiomyopathy"),
   "ckm_hfref",
   word_boundary_terms = c("hfref", "hfmref")
 )
@@ -652,7 +661,9 @@ ckm_prediabetes <- kw_flag(
 
 ckm_cabg_hx <- kw_flag(
   dx_lifetime,
+  # Match "bypass" preceded by "coronary" / "artery" / "cardiac", NOT "gastric"/"intestinal"
   c("coronary artery bypass",
+    "coronary bypass",
     "history of coronary artery bypass",
     "personal history of coronary artery bypass"),
   "ckm_cabg_hx",
@@ -756,21 +767,37 @@ preg_htn_gestational <- kw_flag(
   "preg_htn_gestational"
 )
 
-preg_preeclampsia <- kw_flag(
-  dx_indexpreg,
-  c("preeclampsia", "pre-eclampsia", "pre eclampsia"),
-  "preg_preeclampsia"
-)
+preg_preeclampsia <- dx_indexpreg %>%
+  # Match (pre-)eclampsia diagnoses, but EXCLUDE those that are postpartum/puerperium
+  # (those are captured by preg_postpartum_preec to avoid double-counting)
+  filter(str_detect(Dx_Desc_lower,
+                    regex("preeclampsia|pre-eclampsia|pre eclampsia", ignore_case = TRUE)),
+         !str_detect(Dx_Desc_lower,
+                    regex("postpartum|puerperium|post-partum", ignore_case = TRUE))) %>%
+  distinct(CURR_CLINIC) %>%
+  mutate(preg_preeclampsia = TRUE)
 
 preg_eclampsia <- kw_flag(
   dx_indexpreg,
-  c("eclampsia"),
+  # Match "eclampsia" but NOT preceded by "pre"/"pre-"/"pre " (i.e., true eclampsia only)
+  c("(?<!pre)(?<!pre-)(?<!pre )eclampsia"),
   "preg_eclampsia"
 )
 
 preg_postpartum_preec <- kw_flag(
   dx_indexpreg,
-  c("postpartum preeclampsia",
+  # Mayo strings: "pre-eclampsia complicating the puerperium",
+  # "Preeclampsia Severe Postpartum", "Preeclampsia Postpartum (HCC)",
+  # "pre-existing hypertension with pre-eclampsia, complicating the puerperium"
+  c("preeclampsia.*postpartum",
+    "preeclampsia.*puerperium",
+    "pre-eclampsia.*postpartum",
+    "pre-eclampsia.*puerperium",
+    "pre eclampsia.*postpartum",
+    "pre eclampsia.*puerperium",
+    "postpartum.*preeclampsia",
+    "postpartum.*pre-eclampsia",
+    "postpartum preeclampsia",
     "post-partum preeclampsia",
     "postpartum eclampsia",
     "post-partum eclampsia"),
@@ -787,17 +814,25 @@ preg_gdm <- kw_flag(
 preg_sga <- kw_flag(
   dx_indexpreg,
   c("small for gestational age",
-    "small-for-gestational-age"),
+    "small-for-gestational-age",
+    "newborn affected by slow intrauterine growth"),
   "preg_sga",
   word_boundary_terms = c("sga")
 )
 
 preg_iugr <- kw_flag(
   dx_indexpreg,
+  # Mayo strings: "Retardation Fetal Growth", "Maternal care for ... poor fetal growth ...",
+  # "intrauterine growth restriction/retardation", "fetal growth restriction/retardation",
+  # "Personal History Intrauterine Growth Restriction"
   c("intrauterine growth restriction",
     "intrauterine growth retardation",
     "fetal growth restriction",
-    "fetal growth retardation"),
+    "fetal growth retardation",
+    "retardation fetal growth",
+    "poor fetal growth",
+    "slow intrauterine growth",
+    "slow fetal growth"),
   "preg_iugr",
   word_boundary_terms = c("iugr")
 )
@@ -855,6 +890,8 @@ comorbidities <- ckm_flags %>%
                                  ckm_dyslipidemia + ckm_prediabetes + ckm_cabg_hx +
                                  ckm_pci_stent_hx + ckm_stroke_tia_hx + ckm_obesity +
                                  ckm_pad + ckm_cardiac_device + ckm_vt_sustained + ckm_osa,
+    # Composite: any preeclampsia spectrum disorder (mutually exclusive children)
+    preg_preec_any_spectrum   = preg_preeclampsia | preg_postpartum_preec | preg_eclampsia,
     preg_count_complications  = preg_htn_any + preg_htn_gestational + preg_preeclampsia +
                                  preg_eclampsia + preg_postpartum_preec + preg_gdm +
                                  preg_sga + preg_iugr + preg_abruption + preg_peripartum_cm
@@ -1019,48 +1056,184 @@ labs_wide <- purrr::map(lab_domains_of_interest, ~ summarise_lab(labs_long, .x))
   reduce(full_join, by = "CURR_CLINIC")
 
 # =============================================================================
-# 10. SMOKING (most recent pre-delivery)
+# 10. SMOKING — two anchors: pre-pregnancy (true PMH) and pre-delivery
 # =============================================================================
-smoking_clean <- smoking %>%
+# CLINICAL ISSUE: Patients typically quit/reduce smoking during pregnancy.
+# A "current smoker" status taken just before delivery underestimates true PMH.
+# Solution: capture the most recent status BEFORE pregnancy started
+# (delv_date - 280 days), which reflects true habits before pregnancy
+# motivated abstinence. Also keep the pre-delivery anchor for reference.
+
+# Step 1: build the smoking table with one row per patient/date
+smoking_long <- smoking %>%
   mutate(tob_dt = as.Date(tob_dt)) %>%
   filter(tob_name == "SMOKING_STATUS_SUMMARY", !is.na(tob_value)) %>%
   select(-any_of("delv_date")) %>%
   inner_join(exposure_df %>% select(CURR_CLINIC, delv_date),
              by = "CURR_CLINIC",
-             relationship = "many-to-one") %>%
+             relationship = "many-to-one")
+
+# Helper: map raw values to clean categories
+map_smoking <- function(x) {
+  case_when(
+    str_detect(x, regex("never", ignore_case = TRUE))                            ~ "Never",
+    str_detect(x, regex("former|quit|ex-?smoker", ignore_case = TRUE))           ~ "Former",
+    str_detect(x, regex("current|every day|some days|daily|^yes$", ignore_case = TRUE)) ~ "Current",
+    str_detect(x, regex("^no$", ignore_case = TRUE))                             ~ "Never",
+    str_detect(x, regex("never assessed|unknown|declined", ignore_case = TRUE))  ~ "Unknown",
+    TRUE                                                                          ~ "Unknown"
+  )
+}
+
+# Pre-pregnancy anchor: most recent status BEFORE pregnancy started
+smoking_pre_preg <- smoking_long %>%
+  filter(tob_dt <= (delv_date - 280)) %>%
+  group_by(CURR_CLINIC) %>%
+  arrange(desc(tob_dt), .by_group = TRUE) %>%
+  slice(1) %>%
+  ungroup() %>%
+  transmute(CURR_CLINIC,
+            smoking_status_pre_preg = factor(map_smoking(tob_value),
+                                             levels = c("Never","Former","Current","Unknown")),
+            smoking_status_pre_preg_raw  = tob_value,
+            smoking_status_pre_preg_date = tob_dt)
+
+# Pre-delivery anchor: most recent status before delivery (legacy variable name)
+smoking_pre_delv <- smoking_long %>%
   filter(tob_dt <= delv_date) %>%
   group_by(CURR_CLINIC) %>%
   arrange(desc(tob_dt), .by_group = TRUE) %>%
   slice(1) %>%
   ungroup() %>%
-  transmute(CURR_CLINIC, smoking_status = tob_value, smoking_status_date = tob_dt)
+  transmute(CURR_CLINIC,
+            smoking_status_pre_delv = factor(map_smoking(tob_value),
+                                             levels = c("Never","Former","Current","Unknown")),
+            smoking_status_pre_delv_raw  = tob_value,
+            smoking_status_pre_delv_date = tob_dt)
+
+# Combine, with preferred "smoking_status" = pre-pregnancy if available, else pre-delivery
+smoking_clean <- smoking_pre_preg %>%
+  full_join(smoking_pre_delv, by = "CURR_CLINIC") %>%
+  mutate(
+    # Primary smoking variable: prefer pre-pregnancy (true PMH)
+    smoking_status = coalesce(smoking_status_pre_preg, smoking_status_pre_delv),
+    smoking_ever   = smoking_status %in% c("Former", "Current")
+  )
 
 # =============================================================================
-# 11. ALCOHOL (most recent pre-delivery)
+# 11. ALCOHOL — two anchors: pre-pregnancy (true PMH) and pre-delivery
 # =============================================================================
-alc_ppi_clean <- alc_ppi %>%
-  mutate(Ans_Dt = as.Date(Ans_Dt),
+# CLINICAL ISSUE: Patients typically stop alcohol during pregnancy. A status
+# recorded just before delivery will under-capture PMH alcohol use.
+# Solution: capture most recent status BEFORE pregnancy started (delv_date - 280
+# days), reflecting baseline habits. Keep pre-delivery anchor for transparency.
+
+# Helper: map raw alcohol social-hx value to clean categories
+map_alcohol <- function(x) {
+  case_when(
+    str_detect(x, regex("^yes$|currently",       ignore_case = TRUE)) ~ "Current",
+    str_detect(x, regex("not currently|former|quit", ignore_case = TRUE)) ~ "Former",
+    str_detect(x, regex("^no$|never",            ignore_case = TRUE)) ~ "Never",
+    TRUE                                                              ~ "Unknown"
+  )
+}
+
+# ---- AUDIT-C (PPI questionnaire) ----
+alc_ppi_long <- alc_ppi %>%
+  mutate(Ans_Dt    = as.Date(Ans_Dt),
          Ans_Value = to_num(Ans_Value)) %>%
+  # AUDIT-C items each score 0-4; anything outside that range is invalid
+  mutate(Ans_Value = ifelse(Ans_Value < 0 | Ans_Value > 4, NA_real_, Ans_Value)) %>%
   select(-any_of("delv_date")) %>%
   inner_join(exposure_df %>% select(CURR_CLINIC, delv_date),
              by = "CURR_CLINIC",
-             relationship = "many-to-one") %>%
+             relationship = "many-to-one")
+
+summarise_auditc <- function(df) {
+  df %>%
+    group_by(CURR_CLINIC) %>%
+    arrange(desc(Ans_Dt), .by_group = TRUE) %>%
+    summarise(
+      audit_frequency = first_or_na(Ans_Value[str_detect(Question_Text,
+                          regex("how often do you have a drink", ignore_case = TRUE))]),
+      audit_quantity  = first_or_na(Ans_Value[str_detect(Question_Text,
+                          regex("how many drinks",               ignore_case = TRUE))]),
+      audit_binge     = first_or_na(Ans_Value[str_detect(Question_Text,
+                          regex("six or more",                   ignore_case = TRUE))]),
+      .groups = "drop"
+    ) %>%
+    mutate(audit_c_score = ifelse(is.na(audit_frequency) & is.na(audit_quantity) & is.na(audit_binge),
+                                  NA_real_,
+                                  rowSums(across(c(audit_frequency, audit_quantity, audit_binge)),
+                                          na.rm = TRUE)),
+           audit_c_at_risk = ifelse(is.na(audit_c_score), NA, audit_c_score >= 3))
+}
+
+# Pre-pregnancy AUDIT-C
+auditc_pre_preg <- alc_ppi_long %>%
+  filter(Ans_Dt <= (delv_date - 280)) %>%
+  summarise_auditc() %>%
+  rename_with(~ paste0(.x, "_pre_preg"), -CURR_CLINIC)
+
+# Pre-delivery AUDIT-C
+auditc_pre_delv <- alc_ppi_long %>%
   filter(Ans_Dt <= delv_date) %>%
+  summarise_auditc() %>%
+  rename_with(~ paste0(.x, "_pre_delv"), -CURR_CLINIC)
+
+# ---- Social-history alcohol-use status ----
+alc_social_long <- alc_social %>%
+  mutate(Social_Hx_DTM = as.Date(Social_Hx_DTM)) %>%
+  filter(Social_Hx_Name_Abbr == "ALCOHOL_USE_C", !is.na(Social_Hx_Answer)) %>%
+  select(-any_of("delv_date")) %>%
+  inner_join(exposure_df %>% select(CURR_CLINIC, delv_date),
+             by = "CURR_CLINIC",
+             relationship = "many-to-one")
+
+# Pre-pregnancy alcohol use status
+alc_status_pre_preg <- alc_social_long %>%
+  filter(Social_Hx_DTM <= (delv_date - 280)) %>%
   group_by(CURR_CLINIC) %>%
-  arrange(desc(Ans_Dt), .by_group = TRUE) %>%
-  summarise(
-    audit_frequency = first_or_na(Ans_Value[str_detect(Question_Text,
-                        regex("how often do you have a drink", ignore_case = TRUE))]),
-    audit_quantity  = first_or_na(Ans_Value[str_detect(Question_Text,
-                        regex("how many drinks",               ignore_case = TRUE))]),
-    audit_binge     = first_or_na(Ans_Value[str_detect(Question_Text,
-                        regex("six or more",                   ignore_case = TRUE))]),
-    .groups = "drop"
-  ) %>%
-  mutate(audit_c_score = ifelse(is.na(audit_frequency) & is.na(audit_quantity) & is.na(audit_binge),
-                                NA_real_,
-                                rowSums(across(c(audit_frequency, audit_quantity, audit_binge)),
-                                        na.rm = TRUE)))
+  arrange(desc(Social_Hx_DTM), .by_group = TRUE) %>%
+  slice(1) %>%
+  ungroup() %>%
+  transmute(CURR_CLINIC,
+            alc_use_status_pre_preg = factor(map_alcohol(Social_Hx_Answer),
+                                             levels = c("Never","Former","Current","Unknown")),
+            alc_social_pre_preg_raw = Social_Hx_Answer)
+
+# Pre-delivery alcohol use status
+alc_status_pre_delv <- alc_social_long %>%
+  filter(Social_Hx_DTM <= delv_date) %>%
+  group_by(CURR_CLINIC) %>%
+  arrange(desc(Social_Hx_DTM), .by_group = TRUE) %>%
+  slice(1) %>%
+  ungroup() %>%
+  transmute(CURR_CLINIC,
+            alc_use_status_pre_delv = factor(map_alcohol(Social_Hx_Answer),
+                                             levels = c("Never","Former","Current","Unknown")),
+            alc_social_pre_delv_raw = Social_Hx_Answer)
+
+# ---- Combine: prefer pre-pregnancy values for primary PMH variables ----
+alc_combined <- auditc_pre_preg %>%
+  full_join(auditc_pre_delv,        by = "CURR_CLINIC") %>%
+  full_join(alc_status_pre_preg,    by = "CURR_CLINIC") %>%
+  full_join(alc_status_pre_delv,    by = "CURR_CLINIC") %>%
+  mutate(
+    # Primary alcohol use status: prefer pre-pregnancy (true PMH)
+    alc_use_status = coalesce(alc_use_status_pre_preg, alc_use_status_pre_delv),
+    # Primary AUDIT-C score: prefer pre-pregnancy
+    audit_c_score   = coalesce(audit_c_score_pre_preg,   audit_c_score_pre_delv),
+    audit_c_at_risk = coalesce(audit_c_at_risk_pre_preg, audit_c_at_risk_pre_delv),
+    # Binary current-use (using primary status)
+    alc_current_use = case_when(
+      alc_use_status == "Current"                     ~ TRUE,
+      alc_use_status %in% c("Never","Former")         ~ FALSE,
+      !is.na(audit_c_score) & audit_c_score >= 1      ~ TRUE,
+      !is.na(audit_c_score) & audit_c_score == 0      ~ FALSE,
+      TRUE                                            ~ NA
+    )
+  )
 
 # =============================================================================
 # 12. ECHO / EF (most recent pre-delivery)
@@ -1078,6 +1251,48 @@ echo_clean <- echo_ef %>%
   slice(1) %>%
   ungroup() %>%
   transmute(CURR_CLINIC, echo_ef = ef, echo_date = procedure_date, echo_bsa = bsa)
+
+# =============================================================================
+# 12b. ECG QUANTITATIVE PARAMETERS (most recent pre-delivery)
+# =============================================================================
+# Extract HR, PR, QRS duration, QT, QTC, QTF from the most recent ECG before
+# delivery. Use the row with non-missing numeric values per patient/ECG.
+
+ecg_clean <- ecg %>%
+  mutate(ECG_Date     = as.Date(ECG_Date),
+         Heart_Rate   = to_num(Heart_Rate),
+         PR_Interval  = to_num(PR_Interval),
+         QRS_Duration = to_num(QRS_Duration),
+         QT_Interval  = to_num(QT_Interval),
+         QTC          = to_num(QTC),
+         QTF          = to_num(QTF)) %>%
+  select(-any_of("delv_date")) %>%
+  inner_join(exposure_df %>% select(CURR_CLINIC, delv_date),
+             by = "CURR_CLINIC",
+             relationship = "many-to-one") %>%
+  filter(!is.na(ECG_Date), ECG_Date <= delv_date) %>%
+  # For each ECG_Date, collapse to a single row using the maximum non-NA value
+  # per parameter (handles multiple sequence rows per ECG)
+  group_by(CURR_CLINIC, ECG_Date) %>%
+  summarise(
+    ecg_hr           = suppressWarnings(max(Heart_Rate,   na.rm = TRUE)),
+    ecg_pr_interval  = suppressWarnings(max(PR_Interval,  na.rm = TRUE)),
+    ecg_qrs_duration = suppressWarnings(max(QRS_Duration, na.rm = TRUE)),
+    ecg_qt_interval  = suppressWarnings(max(QT_Interval,  na.rm = TRUE)),
+    ecg_qtc          = suppressWarnings(max(QTC,          na.rm = TRUE)),
+    ecg_qtf          = suppressWarnings(max(QTF,          na.rm = TRUE)),
+    .groups = "drop"
+  ) %>%
+  # Replace -Inf (no non-NA values) with NA
+  mutate(across(starts_with("ecg_"), ~ ifelse(is.infinite(.), NA_real_, .))) %>%
+  # Keep most recent ECG per patient
+  group_by(CURR_CLINIC) %>%
+  arrange(desc(ECG_Date), .by_group = TRUE) %>%
+  slice(1) %>%
+  ungroup() %>%
+  rename(ecg_date = ECG_Date)
+
+cat("ECG quantitative data captured for", nrow(ecg_clean), "patients\n")
 
 # =============================================================================
 # 13. CONCOMITANT MEDICATIONS (active near delivery)
@@ -1138,6 +1353,24 @@ cat("Drug switches (n_distinct_drugs):\n")
 print(table(exposure_df$glp1_n_distinct_drugs, useNA = "ifany"))
 cat("\n")
 
+# Compare pre-pregnancy vs pre-delivery smoking/alcohol (PMH integrity check)
+cat("--- Smoking: pre-pregnancy vs pre-delivery anchor ---\n")
+cat("Pre-pregnancy:\n")
+print(table(smoking_clean$smoking_status_pre_preg, useNA = "ifany"))
+cat("Pre-delivery (legacy):\n")
+print(table(smoking_clean$smoking_status_pre_delv, useNA = "ifany"))
+cat("Primary smoking_status (prefers pre-pregnancy):\n")
+print(table(smoking_clean$smoking_status, useNA = "ifany"))
+
+cat("\n--- Alcohol: pre-pregnancy vs pre-delivery anchor ---\n")
+cat("Pre-pregnancy:\n")
+print(table(alc_combined$alc_use_status_pre_preg, useNA = "ifany"))
+cat("Pre-delivery (legacy):\n")
+print(table(alc_combined$alc_use_status_pre_delv, useNA = "ifany"))
+cat("Primary alc_use_status (prefers pre-pregnancy):\n")
+print(table(alc_combined$alc_use_status, useNA = "ifany"))
+cat("\n")
+
 analysis_df <- cohort_clean %>%
   left_join(demo_clean,       by = "CURR_CLINIC") %>%
   left_join(ob_clean,         by = "CURR_CLINIC") %>%
@@ -1155,8 +1388,9 @@ analysis_df <- cohort_clean %>%
   left_join(comorbidities,    by = "CURR_CLINIC") %>%
   left_join(labs_wide,        by = "CURR_CLINIC") %>%
   left_join(smoking_clean,    by = "CURR_CLINIC") %>%
-  left_join(alc_ppi_clean,    by = "CURR_CLINIC") %>%
+  left_join(alc_combined,     by = "CURR_CLINIC") %>%
   left_join(echo_clean,       by = "CURR_CLINIC") %>%
+  left_join(ecg_clean,        by = "CURR_CLINIC") %>%
   left_join(meds_wide,        by = "CURR_CLINIC") %>%
   mutate(
     across(starts_with("ckm_"),  ~ if (is.logical(.)) coalesce(., FALSE) else .),

@@ -28,7 +28,7 @@ suppressPackageStartupMessages({
 
 sys_name <- Sys.info()[["sysname"]]
 proj_root <- if (sys_name == "Darwin") {
-  "~/Documents/postpartum-glp1"
+  "/Users/alfredoverastegui/Desktop/Research/VS Code Workbook/MDH Lab/postpartum-glp1"
 } else {
   "C:/Users/M320532/Desktop/Research/MDH Lab/postpartum-glp1"
 }
@@ -451,8 +451,10 @@ p_sbp_subgroup <- vitals_long %>%
   theme_minimal(base_size = 11)
 
 # Lab signal: HbA1c
+# Filter outliers: HbA1c outside 4-15% is almost always a unit error or lab artifact
 hba1c_long <- labs_long %>%
   filter(lab_domain == "hba1c", !is.na(Resultn),
+         Resultn >= 4, Resultn <= 15,
          days_from_glp1 >= -180, days_from_glp1 <= 365)
 
 p_hba1c <- hba1c_long %>%
@@ -461,25 +463,71 @@ p_hba1c <- hba1c_long %>%
   geom_smooth(method = "loess", se = TRUE, color = "purple", span = 0.5) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "gray30") +
   geom_hline(yintercept = c(5.7, 6.5), linetype = "dotted", color = "darkorange") +
+  annotate("text", x = -180, y = 5.7, label = "Prediabetes (5.7%)",
+           hjust = 0, vjust = -0.3, size = 3, color = "darkorange") +
+  annotate("text", x = -180, y = 6.5, label = "Diabetes (6.5%)",
+           hjust = 0, vjust = -0.3, size = 3, color = "darkorange") +
+  coord_cartesian(ylim = c(4.5, 11)) +
+  scale_y_continuous(breaks = seq(4, 12, 1)) +
   labs(title = "HbA1c trajectory around GLP-1 start",
-       subtitle = "Dotted lines = pre-diabetes (5.7) and diabetes (6.5) thresholds",
+       subtitle = paste0("Day 0 = GLP-1 start; ",
+                         nrow(hba1c_long), " measurements from ",
+                         n_distinct(hba1c_long$CURR_CLINIC), " patients"),
        x = "Days from GLP-1 start", y = "HbA1c (%)") +
   theme_minimal(base_size = 11)
 
+# Additional plot: HbA1c stratified by T2DM status (biologically the expected signal)
+hba1c_by_dm <- labs_long %>%
+  filter(lab_domain == "hba1c", !is.na(Resultn),
+         Resultn >= 4, Resultn <= 15,
+         days_from_glp1 >= -180, days_from_glp1 <= 365) %>%
+  inner_join(analysis_df %>% select(CURR_CLINIC, ckm_t2dm, ckm_prediabetes),
+             by = "CURR_CLINIC") %>%
+  mutate(dm_status = case_when(
+    ckm_t2dm        ~ "T2DM",
+    ckm_prediabetes ~ "Prediabetes",
+    TRUE            ~ "No DM/Pre-DM"
+  ),
+  dm_status = factor(dm_status, levels = c("No DM/Pre-DM", "Prediabetes", "T2DM")))
+
+p_hba1c_by_dm <- hba1c_by_dm %>%
+  ggplot(aes(x = days_from_glp1, y = Resultn,
+             color = dm_status, fill = dm_status)) +
+  geom_point(alpha = 0.2, size = 0.6) +
+  geom_smooth(method = "loess", se = TRUE, span = 0.5, alpha = 0.15) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray30") +
+  geom_hline(yintercept = c(5.7, 6.5), linetype = "dotted", color = "darkorange") +
+  coord_cartesian(ylim = c(4.5, 11)) +
+  scale_y_continuous(breaks = seq(4, 12, 1)) +
+  labs(title = "HbA1c trajectory by diabetes status",
+       subtitle = "Day 0 = GLP-1 start; expected signal: T2DM patients show greater HbA1c drop",
+       x = "Days from GLP-1 start", y = "HbA1c (%)",
+       color = "Diabetes status", fill = "Diabetes status") +
+  theme_minimal(base_size = 11)
+
 ggsave(file.path(plot_dir, "v2_tbwl_pct_by_timing.png"),  p_tbwl_by_timing,
-       width = 8, height = 5, dpi = 300)
+       width = 8, height = 5, dpi = 300, bg = "white")
+
 ggsave(file.path(plot_dir, "v2_weight_kg_by_timing.png"), p_wt_by_timing,
-       width = 8, height = 5, dpi = 300)
+       width = 8, height = 5, dpi = 300, bg = "white")
+
 ggsave(file.path(plot_dir, "v2_sbp_pct_by_timing.png"),   p_sbp_pct_by_timing,
-       width = 8, height = 5, dpi = 300)
+       width = 8, height = 5, dpi = 300, bg = "white")
+
 ggsave(file.path(plot_dir, "v2_sbp_pct_subgroup.png"),    p_sbp_pct_subgroup,
-       width = 8, height = 5, dpi = 300)
+       width = 8, height = 5, dpi = 300, bg = "white")
+
 ggsave(file.path(plot_dir, "v2_sbp_kg_by_timing.png"),    p_sbp_by_timing,
-       width = 8, height = 5, dpi = 300)
+       width = 8, height = 5, dpi = 300, bg = "white")
+
 ggsave(file.path(plot_dir, "v2_sbp_subgroup.png"),        p_sbp_subgroup,
-       width = 8, height = 5, dpi = 300)
+       width = 8, height = 5, dpi = 300, bg = "white")
+
 ggsave(file.path(plot_dir, "v2_hba1c_trajectory.png"),    p_hba1c,
-       width = 8, height = 5, dpi = 300)
+       width = 8, height = 5, dpi = 300, bg = "white")
+
+ggsave(file.path(plot_dir, "v2_hba1c_by_dm_status.png"),  p_hba1c_by_dm,
+       width = 8, height = 5, dpi = 300, bg = "white")
 
 cat("Plots saved to:", plot_dir, "\n\n")
 
