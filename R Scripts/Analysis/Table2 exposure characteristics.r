@@ -221,18 +221,11 @@ writeLines(md_by_bp,   file.path(md_dir, "table2_by_bp_subgroup.md"))
 # 6. RENDER HTML — NEJM/JAMA minimalist style
 # =============================================================================
 nejm_style <- function(gt_tbl) {
+  n_rows <- nrow(gt_tbl[["_data"]])
+
   gt_tbl %>%
+    # Set table-level options
     tab_options(
-      table.border.top.style          = "hidden",
-      table.border.bottom.style       = "hidden",
-      heading.border.bottom.style     = "hidden",
-      column_labels.border.top.style  = "hidden",
-      column_labels.border.bottom.style = "hidden",
-      table_body.border.top.style     = "hidden",
-      table_body.border.bottom.style  = "hidden",
-      row_group.border.top.style      = "hidden",
-      row_group.border.bottom.style   = "hidden",
-      stub.border.style               = "hidden",
       table.font.names                = "Georgia, 'Times New Roman', serif",
       table.font.size                 = px(13),
       table.font.color                = "#000000",
@@ -242,19 +235,55 @@ nejm_style <- function(gt_tbl) {
       heading.align                   = "left",
       data_row.padding                = px(5),
       column_labels.padding           = px(8),
-      column_labels.font.weight       = "bold"
+      column_labels.font.weight       = "bold",
+      # Hide all default borders
+      table.border.top.style          = "none",
+      table.border.bottom.style       = "none",
+      heading.border.bottom.style     = "none",
+      heading.border.lr.style         = "none",
+      column_labels.border.top.style  = "none",
+      column_labels.border.bottom.style = "none",
+      column_labels.border.lr.style   = "none",
+      table_body.border.top.style     = "none",
+      table_body.border.bottom.style  = "none",
+      table_body.hlines.style         = "none",
+      table_body.vlines.style         = "none",
+      row_group.border.top.style      = "none",
+      row_group.border.bottom.style   = "none",
+      row_group.border.left.style     = "none",
+      row_group.border.right.style    = "none",
+      stub.border.style               = "none",
+      stub.border.width               = px(0),
+      footnotes.border.bottom.style   = "none",
+      source_notes.border.bottom.style = "none"
     ) %>%
+    # Belt-and-suspenders: explicitly strip ALL cell borders on every cell.
+    # This catches anything that slipped through the option-level settings.
+    tab_style(
+      style = cell_borders(sides = "all", color = "#FFFFFF", weight = px(0)),
+      locations = list(
+        cells_body(),
+        cells_column_labels(),
+        cells_title(),
+        cells_footnotes(),
+        cells_source_notes()
+      )
+    ) %>%
+    # Now add the THREE borders we actually want:
+    # (1) Top border above column headers
     tab_style(
       style = cell_borders(sides = "top", color = "#000000", weight = px(2)),
       locations = cells_column_labels()
     ) %>%
+    # (2) Bottom border below column headers
     tab_style(
       style = cell_borders(sides = "bottom", color = "#000000", weight = px(1)),
       locations = cells_column_labels()
     ) %>%
+    # (3) Bottom border below final data row
     tab_style(
       style = cell_borders(sides = "bottom", color = "#000000", weight = px(2)),
-      locations = cells_body(rows = nrow(gt_tbl[["_data"]]))
+      locations = cells_body(rows = n_rows)
     )
 }
 

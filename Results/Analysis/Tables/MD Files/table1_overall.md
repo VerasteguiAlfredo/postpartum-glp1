@@ -16,28 +16,28 @@ Table: Table 1. Baseline demographics and clinical characteristics (overall coho
 |Not Hispanic or Latino                       |641 (91%)            |
 |Unknown/Declined                             |7 (1.0%)             |
 |__Height, cm__                               |165.1 (160.0, 170.2) |
-|__Baseline weight, kg__                      |107.1 (94.1, 122.5)  |
-|Missing                                      |82                   |
-|__Baseline BMI, kg/m^2__                     |39.5 (35.0, 44.6)    |
-|Missing                                      |82                   |
+|__Baseline weight, kg__                      |107.6 (94.7, 123.5)  |
+|Missing                                      |52                   |
+|__Baseline BMI, kg/m^2__                     |39.6 (35.2, 44.8)    |
+|Missing                                      |52                   |
 |__BMI category__                             |NA                   |
 |Normal/Underweight (<25)                     |2 (0.3%)             |
-|Overweight (25-29.9)                         |26 (4.2%)            |
-|Obesity Class I (30-34.9)                    |128 (21%)            |
-|Obesity Class II (35-39.9)                   |173 (28%)            |
-|Obesity Class III (>=40)                     |293 (47%)            |
-|Missing                                      |82                   |
+|Overweight (25-29.9)                         |27 (4.1%)            |
+|Obesity Class I (30-34.9)                    |130 (20%)            |
+|Obesity Class II (35-39.9)                   |183 (28%)            |
+|Obesity Class III (>=40)                     |310 (48%)            |
+|Missing                                      |52                   |
 |__Pre-pregnancy BMI, kg/m^2__                |37.0 (33.0, 41.9)    |
 |Missing                                      |71                   |
 |__Baseline SBP, mmHg__                       |121.0 (112.0, 130.0) |
-|Missing                                      |91                   |
-|__Baseline DBP, mmHg__                       |80.0 (74.0, 84.0)    |
-|Missing                                      |91                   |
+|Missing                                      |60                   |
+|__Baseline DBP, mmHg__                       |79.0 (73.5, 84.0)    |
+|Missing                                      |60                   |
 |__BP stage (ACC/AHA 2017)__                  |NA                   |
-|Normal/Elevated                              |289 (47%)            |
-|Stage 1                                      |256 (42%)            |
-|Stage 2                                      |68 (11%)             |
-|Missing                                      |91                   |
+|Normal/Elevated                              |310 (48%)            |
+|Stage 1                                      |262 (41%)            |
+|Stage 2                                      |72 (11%)             |
+|Missing                                      |60                   |
 |__Gravidity__                                |NA                   |
 |Multigravida (>=2)                           |558 (81%)            |
 |Primigravida (1)                             |130 (19%)            |
@@ -60,11 +60,11 @@ Table: Table 1. Baseline demographics and clinical characteristics (overall coho
 |semaglutide                                  |325 (46%)            |
 |tirzepatide                                  |299 (42%)            |
 |__GLP-1 persistence__                        |NA                   |
-|< 1 month                                    |33 (4.7%)            |
-|1-3 months                                   |76 (11%)             |
-|3-6 months                                   |98 (14%)             |
-|6-12 months                                  |123 (17%)            |
-|≥ 12 months                                  |374 (53%)            |
+|< 1 month                                    |101 (14%)            |
+|1-3 months                                   |120 (17%)            |
+|3-6 months                                   |174 (25%)            |
+|6-12 months                                  |216 (31%)            |
+|≥ 12 months                                  |93 (13%)             |
 |Unknown                                      |0 (0%)               |
 |__Days from delivery to GLP-1 start__        |207.0 (123.0, 282.5) |
 |__Smoking status (pre-pregnancy preferred)__ |NA                   |

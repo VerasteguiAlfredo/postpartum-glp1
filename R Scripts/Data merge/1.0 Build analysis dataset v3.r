@@ -1,5 +1,5 @@
 # =============================================================================
-# postpartum-glp1: Build Analysis-Ready Dataset (v2 — DELIVERY-ANCHORED)
+# postpartum-glp1: Build Analysis-Ready Dataset (v3 — DELIVERY-ANCHORED)
 # -----------------------------------------------------------------------------
 # Purpose : Build patient-level analysis dataset anchored to DELIVERY DATE,
 #           per Dr. Demi's guidance:
@@ -7,6 +7,15 @@
 #           - BP analysis restricted to elevated-BP patients (Stage 1 / 2)
 #           - Baseline weight ≥ 42 days postpartum (with sensitivity flag)
 #           - Lab extraction via keyword matching on TestDesc
+#
+# v3 CHANGES vs v2:
+#   - NEW baseline tier: *_baseline_pp (postpartum-only, no 42-day floor).
+#     Recovers the <6 weeks GLP-1 stratum (24 patients) whose primary baseline
+#     was impossible by definition.
+#   - NEW combined baseline: *_baseline_combined falls back from primary →
+#     postpartum-only. Used for bp_stage, BMI, deltas, and Table 1.
+#   - NEW _source variable indicates which tier was used per patient.
+#   - Sensitivity baseline retained as tier 3 for audit/sensitivity analyses.
 #
 # Inputs  : `data_list` (loaded in memory)
 #
@@ -194,11 +203,30 @@ glp1_clean <- glp1_meds %>%
   )
 
 # Postpartum GLP-1 (start ≥ delivery date)
+# Cap absurd stop dates (e.g., 9999-12-31 placeholders or data entry errors)
+# at start + 5 years (1825 days). Anything beyond that is treated as missing,
+# which then triggers the "no stop date recorded" path below.
 glp1_postpartum_raw <- glp1_clean %>%
   filter(glp1_start >= delv_date) %>%
-  mutate(Order_Stop_Date = as.Date(Order_Stop_Date),
+  mutate(Order_Stop_Date_raw = as.Date(Order_Stop_Date),
+         # Sanity-cap implausible stop dates
+         Order_Stop_Date     = if_else(
+           !is.na(Order_Stop_Date_raw) &
+             (Order_Stop_Date_raw > (glp1_start + 1825) |
+              Order_Stop_Date_raw > as.Date("2030-01-01")),
+           NA_Date_,
+           Order_Stop_Date_raw
+         ),
          # If no stop date, use the order start (treated as a point exposure)
          glp1_end_effective = coalesce(Order_Stop_Date, glp1_start))
+
+# Diagnostic: how many orders had implausible stop dates capped?
+n_capped <- sum(!is.na(glp1_postpartum_raw$Order_Stop_Date_raw) &
+                is.na(glp1_postpartum_raw$Order_Stop_Date))
+if (n_capped > 0) {
+  cat("Note:", n_capped, "GLP-1 orders had implausible stop dates capped",
+      "(>5y after start or post-2030 — likely placeholder values).\n")
+}
 
 glp1_postpartum <- glp1_postpartum_raw %>%
   group_by(CURR_CLINIC) %>%
@@ -346,12 +374,19 @@ vitals_long <- bind_rows(
 #     (sensitivity: include all baselines, no 42-day floor)
 #   - Post values at 3, 6, 12 months from DELIVERY date
 
-# Baseline strategy:
-#   primary  = closest measurement that is (a) ≥42 days postpartum
-#                                          AND (b) before GLP-1 start
-#                                          AND (c) within 90 days before GLP-1
-#   sensitivity = closest measurement before GLP-1, any time after delivery,
-#                 within 90 days before GLP-1 (current v1 behavior)
+# v3 baseline strategy (3 tiers + 1 combined):
+#   PRIMARY  (tier 1): closest measurement that is
+#                      (a) ≥42 days postpartum
+#                      AND (b) before GLP-1 start
+#                      AND (c) within 90 days before GLP-1
+#   PP-ONLY  (tier 2): closest postpartum measurement (≥0 days pp), before GLP-1,
+#                      within 90 days before GLP-1.
+#                      Recovers <6 weeks GLP-1 starters with honest postpartum
+#                      data (caveat: day 1-7 pp weights are fluid-inflated).
+#   SENS     (tier 3): closest measurement before GLP-1 within 90 days (no
+#                      postpartum-period requirement). May include pre-pregnancy.
+#                      Kept for audit/sensitivity analyses only.
+#   COMBINED (used for primary analyses): PRIMARY → fallback to PP-ONLY.
 
 # Helper: per patient, compute baselines + post-delivery windows
 summarise_vital_delivery_anchored <- function(df, vital_name) {
@@ -360,18 +395,21 @@ summarise_vital_delivery_anchored <- function(df, vital_name) {
   sub <- df %>% filter(vital == vital_name)
   if (nrow(sub) == 0) {
     return(tibble(CURR_CLINIC = numeric(0)) %>%
-             mutate("{vital_name}_baseline_primary" := numeric(0),
-                    "{vital_name}_baseline_sens"    := numeric(0),
-                    "{vital_name}_m3_pp"            := numeric(0),
-                    "{vital_name}_m6_pp"            := numeric(0),
-                    "{vital_name}_m12_pp"           := numeric(0),
-                    "{vital_name}_n_meas_pp"        := integer(0)))
+             mutate("{vital_name}_baseline_primary"  := numeric(0),
+                    "{vital_name}_baseline_pp"       := numeric(0),
+                    "{vital_name}_baseline_sens"     := numeric(0),
+                    "{vital_name}_baseline_combined" := numeric(0),
+                    "{vital_name}_baseline_source"   := character(0),
+                    "{vital_name}_m3_pp"             := numeric(0),
+                    "{vital_name}_m6_pp"             := numeric(0),
+                    "{vital_name}_m12_pp"            := numeric(0),
+                    "{vital_name}_n_meas_pp"         := integer(0)))
   }
 
   sub %>%
     group_by(CURR_CLINIC) %>%
     summarise(
-      # ----- PRIMARY BASELINE (≥42 days postpartum, before GLP-1) -----
+      # ----- TIER 1: PRIMARY BASELINE (≥42 days postpartum, before GLP-1) -----
       baseline_primary = {
         ref_delv <- safe_first(delv_date)
         ref_glp1 <- safe_first(glp1_index_date)
@@ -381,7 +419,17 @@ summarise_vital_delivery_anchored <- function(df, vital_name) {
                          window_days = 90, side = "before",
                          min_days_from_ref = 42, ref_date = ref_delv)
       },
-      # ----- SENSITIVITY BASELINE (any baseline before GLP-1) -----
+      # ----- TIER 2: POSTPARTUM-ONLY BASELINE (any day ≥0 pp, before GLP-1) -----
+      baseline_pp = {
+        ref_delv <- safe_first(delv_date)
+        ref_glp1 <- safe_first(glp1_index_date)
+        if (length(ref_glp1) == 0 || is.na(ref_glp1)) NA_real_ else
+          closest_within(meas_date, value,
+                         target = ref_glp1,
+                         window_days = 90, side = "before",
+                         min_days_from_ref = 0, ref_date = ref_delv)
+      },
+      # ----- TIER 3: SENSITIVITY BASELINE (any baseline before GLP-1) -----
       baseline_sens = {
         ref_glp1 <- safe_first(glp1_index_date)
         if (length(ref_glp1) == 0 || is.na(ref_glp1)) NA_real_ else
@@ -415,6 +463,15 @@ summarise_vital_delivery_anchored <- function(df, vital_name) {
       },
       .groups = "drop"
     ) %>%
+    # ----- COMBINED BASELINE (primary → pp-only fallback) + SOURCE TAG -----
+    mutate(
+      baseline_combined = coalesce(baseline_primary, baseline_pp),
+      baseline_source   = case_when(
+        !is.na(baseline_primary) ~ "primary",
+        !is.na(baseline_pp)      ~ "postpartum_fallback",
+        TRUE                     ~ NA_character_
+      )
+    ) %>%
     rename_with(~ paste0(vital_name, "_", .x), -CURR_CLINIC)
 }
 
@@ -428,18 +485,19 @@ weight_summary <- summarise_vital_delivery_anchored(vitals_long, "weight_kg")
 # Per ACC/AHA 2017 (which Dr. Demi referenced):
 #   Stage 1: SBP 130-139 OR DBP 80-89
 #   Stage 2: SBP ≥ 140 OR DBP ≥ 90
-# Apply to baseline (primary) BP near delivery.
+# Apply to baseline (COMBINED: primary → pp fallback) so all patients with
+# any pre-GLP-1 postpartum BP measurement are stageable.
 
 bp_staging <- sbp_summary %>%
-  select(CURR_CLINIC, sbp_baseline_primary) %>%
-  left_join(dbp_summary %>% select(CURR_CLINIC, dbp_baseline_primary),
+  select(CURR_CLINIC, sbp_baseline_combined) %>%
+  left_join(dbp_summary %>% select(CURR_CLINIC, dbp_baseline_combined),
             by = "CURR_CLINIC") %>%
   mutate(
     bp_stage = case_when(
-      is.na(sbp_baseline_primary) & is.na(dbp_baseline_primary)             ~ NA_character_,
-      sbp_baseline_primary >= 140 | dbp_baseline_primary >= 90               ~ "Stage 2",
-      sbp_baseline_primary >= 130 | dbp_baseline_primary >= 80               ~ "Stage 1",
-      TRUE                                                                   ~ "Normal/Elevated"
+      is.na(sbp_baseline_combined) & is.na(dbp_baseline_combined)            ~ NA_character_,
+      sbp_baseline_combined >= 140 | dbp_baseline_combined >= 90              ~ "Stage 2",
+      sbp_baseline_combined >= 130 | dbp_baseline_combined >= 80              ~ "Stage 1",
+      TRUE                                                                    ~ "Normal/Elevated"
     ),
     bp_stage = factor(bp_stage,
                       levels = c("Normal/Elevated", "Stage 1", "Stage 2")),
@@ -450,7 +508,7 @@ bp_staging <- sbp_summary %>%
 # =============================================================================
 # 7. TIME-TO-EVENT (anchored to delivery, looking at post-GLP-1 changes)
 # =============================================================================
-# Events (post GLP-1 start, vs PRIMARY baseline):
+# Events (post GLP-1 start, vs COMBINED baseline = primary → pp fallback):
 #   - SBP drop ≥ 10 mmHg
 #   - DBP drop ≥ 5 mmHg
 #   - Weight loss > 10%
@@ -473,15 +531,15 @@ compute_events <- function(vitals_long, vital_name, baseline_df, baseline_col, t
     )
 }
 
-sbp_event <- compute_events(vitals_long, "sbp", sbp_summary, "sbp_baseline_primary",
+sbp_event <- compute_events(vitals_long, "sbp", sbp_summary, "sbp_baseline_combined",
                             function(v, b) (b - v) >= 10) %>%
   rename(sbp_event = event_occurred, sbp_tte = time_to_event, sbp_fu = last_followup)
 
-dbp_event <- compute_events(vitals_long, "dbp", dbp_summary, "dbp_baseline_primary",
+dbp_event <- compute_events(vitals_long, "dbp", dbp_summary, "dbp_baseline_combined",
                             function(v, b) (b - v) >= 5) %>%
   rename(dbp_event = event_occurred, dbp_tte = time_to_event, dbp_fu = last_followup)
 
-wt_event <- compute_events(vitals_long, "weight_kg", weight_summary, "weight_kg_baseline_primary",
+wt_event <- compute_events(vitals_long, "weight_kg", weight_summary, "weight_kg_baseline_combined",
                            function(v, b) ((b - v) / b) > 0.10) %>%
   rename(wt_event = event_occurred, wt_tte = time_to_event, wt_fu = last_followup)
 
@@ -1353,6 +1411,44 @@ cat("Drug switches (n_distinct_drugs):\n")
 print(table(exposure_df$glp1_n_distinct_drugs, useNA = "ifany"))
 cat("\n")
 
+# Baseline tier coverage (v3) — quantify the recovery from new pp tier
+cat("--- Baseline tier coverage (v3) ---\n")
+baseline_coverage <- tibble(
+  vital              = c("SBP", "DBP", "Weight"),
+  has_primary        = c(sum(!is.na(sbp_summary$sbp_baseline_primary)),
+                         sum(!is.na(dbp_summary$dbp_baseline_primary)),
+                         sum(!is.na(weight_summary$weight_kg_baseline_primary))),
+  has_pp_only        = c(sum(!is.na(sbp_summary$sbp_baseline_pp)),
+                         sum(!is.na(dbp_summary$dbp_baseline_pp)),
+                         sum(!is.na(weight_summary$weight_kg_baseline_pp))),
+  has_combined       = c(sum(!is.na(sbp_summary$sbp_baseline_combined)),
+                         sum(!is.na(dbp_summary$dbp_baseline_combined)),
+                         sum(!is.na(weight_summary$weight_kg_baseline_combined))),
+  has_sens           = c(sum(!is.na(sbp_summary$sbp_baseline_sens)),
+                         sum(!is.na(dbp_summary$dbp_baseline_sens)),
+                         sum(!is.na(weight_summary$weight_kg_baseline_sens)))
+)
+print(baseline_coverage)
+cat("\n")
+
+cat("Baseline source breakdown (combined = primary -> pp fallback):\n")
+print(sbp_summary    %>% count(sbp_baseline_source,       name = "n_sbp"))
+print(dbp_summary    %>% count(dbp_baseline_source,       name = "n_dbp"))
+print(weight_summary %>% count(weight_kg_baseline_source, name = "n_weight"))
+cat("\n")
+
+# Source breakdown stratified by GLP-1 timing (shows which strata used fallback)
+cat("Baseline source by GLP-1 timing stratum (weight):\n")
+print(
+  weight_summary %>%
+    inner_join(exposure_df %>% select(CURR_CLINIC, glp1_timing_cat),
+               by = "CURR_CLINIC") %>%
+    count(glp1_timing_cat, weight_kg_baseline_source) %>%
+    tidyr::pivot_wider(names_from = weight_kg_baseline_source,
+                       values_from = n, values_fill = 0)
+)
+cat("\n")
+
 # Compare pre-pregnancy vs pre-delivery smoking/alcohol (PMH integrity check)
 cat("--- Smoking: pre-pregnancy vs pre-delivery anchor ---\n")
 cat("Pre-pregnancy:\n")
@@ -1398,18 +1494,30 @@ analysis_df <- cohort_clean %>%
     across(starts_with("med_"),  ~ coalesce(., FALSE)),
     glp1_postpartum_exposed = coalesce(glp1_postpartum_exposed, FALSE),
     glp1_predelivery_any    = coalesce(glp1_predelivery_any, FALSE),
-    # Derived
-    bmi_baseline_primary = weight_kg_baseline_primary / ((height_cm / 100) ^ 2),
-    bmi_baseline_sens    = weight_kg_baseline_sens    / ((height_cm / 100) ^ 2),
-    # Deltas (PRIMARY baseline)
-    delta_sbp_pp6m   = sbp_baseline_primary       - sbp_m6_pp,
-    delta_sbp_pp12m  = sbp_baseline_primary       - sbp_m12_pp,
-    delta_dbp_pp6m   = dbp_baseline_primary       - dbp_m6_pp,
-    delta_dbp_pp12m  = dbp_baseline_primary       - dbp_m12_pp,
-    delta_wt_pp6m    = weight_kg_baseline_primary - weight_kg_m6_pp,
-    delta_wt_pp12m   = weight_kg_baseline_primary - weight_kg_m12_pp,
-    pct_wt_loss_pp6m  = (weight_kg_baseline_primary - weight_kg_m6_pp)  / weight_kg_baseline_primary * 100,
-    pct_wt_loss_pp12m = (weight_kg_baseline_primary - weight_kg_m12_pp) / weight_kg_baseline_primary * 100,
+    # Derived BMI from each baseline tier
+    bmi_baseline_primary  = weight_kg_baseline_primary  / ((height_cm / 100) ^ 2),
+    bmi_baseline_pp       = weight_kg_baseline_pp       / ((height_cm / 100) ^ 2),
+    bmi_baseline_sens     = weight_kg_baseline_sens     / ((height_cm / 100) ^ 2),
+    bmi_baseline_combined = weight_kg_baseline_combined / ((height_cm / 100) ^ 2),
+    # Deltas using COMBINED baseline (primary → pp fallback). Used for
+    # primary analyses and Table 1. Keep _primary versions for reference.
+    delta_sbp_pp6m_primary   = sbp_baseline_primary        - sbp_m6_pp,
+    delta_sbp_pp12m_primary  = sbp_baseline_primary        - sbp_m12_pp,
+    delta_dbp_pp6m_primary   = dbp_baseline_primary        - dbp_m6_pp,
+    delta_dbp_pp12m_primary  = dbp_baseline_primary        - dbp_m12_pp,
+    delta_wt_pp6m_primary    = weight_kg_baseline_primary  - weight_kg_m6_pp,
+    delta_wt_pp12m_primary   = weight_kg_baseline_primary  - weight_kg_m12_pp,
+    pct_wt_loss_pp6m_primary  = (weight_kg_baseline_primary  - weight_kg_m6_pp)  / weight_kg_baseline_primary  * 100,
+    pct_wt_loss_pp12m_primary = (weight_kg_baseline_primary  - weight_kg_m12_pp) / weight_kg_baseline_primary  * 100,
+    # PRIMARY ANALYSIS deltas — use COMBINED baseline
+    delta_sbp_pp6m   = sbp_baseline_combined       - sbp_m6_pp,
+    delta_sbp_pp12m  = sbp_baseline_combined       - sbp_m12_pp,
+    delta_dbp_pp6m   = dbp_baseline_combined       - dbp_m6_pp,
+    delta_dbp_pp12m  = dbp_baseline_combined       - dbp_m12_pp,
+    delta_wt_pp6m    = weight_kg_baseline_combined - weight_kg_m6_pp,
+    delta_wt_pp12m   = weight_kg_baseline_combined - weight_kg_m12_pp,
+    pct_wt_loss_pp6m  = (weight_kg_baseline_combined - weight_kg_m6_pp)  / weight_kg_baseline_combined * 100,
+    pct_wt_loss_pp12m = (weight_kg_baseline_combined - weight_kg_m12_pp) / weight_kg_baseline_combined * 100,
     # Lab deltas (HbA1c, lipids)
     delta_hba1c_6m    = lab_hba1c_baseline   - lab_hba1c_post_6m,
     delta_hba1c_12m   = lab_hba1c_baseline   - lab_hba1c_post_12m,
@@ -1432,18 +1540,26 @@ readr::write_csv(labs_long,   file.path(out_dir, "labs_long.csv"))
 readr::write_csv(events_df,   file.path(out_dir, "events_df.csv"))
 
 cat("\n========================================\n")
-cat("FINAL ANALYSIS DATASET (v2 — delivery-anchored)\n")
+cat("FINAL ANALYSIS DATASET (v3 — delivery-anchored)\n")
 cat("========================================\n")
-cat("Patients (rows):         ", nrow(analysis_df), "\n")
-cat("Variables (cols):        ", ncol(analysis_df), "\n")
-cat("GLP-1 exposed:           ", sum(analysis_df$glp1_postpartum_exposed), "\n")
-cat("Baseline SBP (primary):  ", sum(!is.na(analysis_df$sbp_baseline_primary)), "\n")
-cat("Baseline SBP (sens):     ", sum(!is.na(analysis_df$sbp_baseline_sens)), "\n")
-cat("Baseline Weight (primary):", sum(!is.na(analysis_df$weight_kg_baseline_primary)), "\n")
-cat("Baseline Weight (sens):  ", sum(!is.na(analysis_df$weight_kg_baseline_sens)), "\n")
-cat("Stage 1+ HTN at baseline:", sum(analysis_df$elevated_bp_any, na.rm = TRUE), "\n")
-cat("Stage 2 HTN at baseline: ", sum(analysis_df$stage2_htn,      na.rm = TRUE), "\n")
-cat("Output dir:              ", out_dir, "\n")
+cat("Patients (rows):           ", nrow(analysis_df), "\n")
+cat("Variables (cols):          ", ncol(analysis_df), "\n")
+cat("GLP-1 exposed:             ", sum(analysis_df$glp1_postpartum_exposed), "\n")
+cat("\n")
+cat("Baseline SBP coverage:\n")
+cat("  primary (>=42d pp):      ", sum(!is.na(analysis_df$sbp_baseline_primary)), "\n")
+cat("  pp-only (>=0d pp):       ", sum(!is.na(analysis_df$sbp_baseline_pp)), "\n")
+cat("  combined (used for analysis):", sum(!is.na(analysis_df$sbp_baseline_combined)), "\n")
+cat("  sensitivity (audit only):", sum(!is.na(analysis_df$sbp_baseline_sens)), "\n")
+cat("\nBaseline Weight coverage:\n")
+cat("  primary (>=42d pp):      ", sum(!is.na(analysis_df$weight_kg_baseline_primary)), "\n")
+cat("  pp-only (>=0d pp):       ", sum(!is.na(analysis_df$weight_kg_baseline_pp)), "\n")
+cat("  combined (used for analysis):", sum(!is.na(analysis_df$weight_kg_baseline_combined)), "\n")
+cat("  sensitivity (audit only):", sum(!is.na(analysis_df$weight_kg_baseline_sens)), "\n")
+cat("\n")
+cat("Stage 1+ HTN at baseline:  ", sum(analysis_df$elevated_bp_any, na.rm = TRUE), "\n")
+cat("Stage 2 HTN at baseline:   ", sum(analysis_df$stage2_htn,      na.rm = TRUE), "\n")
+cat("Output dir:                ", out_dir, "\n")
 
 invisible(list(
   analysis_df = analysis_df,

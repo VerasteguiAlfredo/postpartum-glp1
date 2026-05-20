@@ -50,14 +50,15 @@ cat("Loaded analysis_df:", nrow(analysis_df), "rows ×", ncol(analysis_df), "col
 # =============================================================================
 table1_df <- analysis_df %>%
   mutate(
+    # BMI category (uses COMBINED baseline = primary -> pp fallback)
     bmi_cat = case_when(
-      is.na(bmi_baseline_primary)        ~ NA_character_,
-      bmi_baseline_primary <  25         ~ "Normal/Underweight (<25)",
-      bmi_baseline_primary >= 25 & bmi_baseline_primary < 30 ~ "Overweight (25-29.9)",
-      bmi_baseline_primary >= 30 & bmi_baseline_primary < 35 ~ "Obesity Class I (30-34.9)",
-      bmi_baseline_primary >= 35 & bmi_baseline_primary < 40 ~ "Obesity Class II (35-39.9)",
-      bmi_baseline_primary >= 40         ~ "Obesity Class III (>=40)",
-      TRUE                               ~ NA_character_
+      is.na(bmi_baseline_combined)        ~ NA_character_,
+      bmi_baseline_combined <  25         ~ "Normal/Underweight (<25)",
+      bmi_baseline_combined >= 25 & bmi_baseline_combined < 30 ~ "Overweight (25-29.9)",
+      bmi_baseline_combined >= 30 & bmi_baseline_combined < 35 ~ "Obesity Class I (30-34.9)",
+      bmi_baseline_combined >= 35 & bmi_baseline_combined < 40 ~ "Obesity Class II (35-39.9)",
+      bmi_baseline_combined >= 40         ~ "Obesity Class III (>=40)",
+      TRUE                                ~ NA_character_
     ),
     bmi_cat = factor(bmi_cat,
                      levels = c("Normal/Underweight (<25)",
@@ -94,16 +95,16 @@ label_map <- list(
   ethnicity_consolidated = "Ethnicity",
 
   # Anthropometrics
-  height_cm                  = "Height, cm",
-  weight_kg_baseline_primary = "Baseline weight, kg",
-  bmi_baseline_primary       = "Baseline BMI, kg/m^2",
-  bmi_cat                    = "BMI category",
-  PREGRAVID_BMI              = "Pre-pregnancy BMI, kg/m^2",
+  height_cm                   = "Height, cm",
+  weight_kg_baseline_combined = "Baseline weight, kg",
+  bmi_baseline_combined       = "Baseline BMI, kg/m^2",
+  bmi_cat                     = "BMI category",
+  PREGRAVID_BMI               = "Pre-pregnancy BMI, kg/m^2",
 
   # Hemodynamics
-  sbp_baseline_primary = "Baseline SBP, mmHg",
-  dbp_baseline_primary = "Baseline DBP, mmHg",
-  bp_stage             = "BP stage (ACC/AHA 2017)",
+  sbp_baseline_combined = "Baseline SBP, mmHg",
+  dbp_baseline_combined = "Baseline DBP, mmHg",
+  bp_stage              = "BP stage (ACC/AHA 2017)",
 
   # Pregnancy / OB
   gravidity_cat            = "Gravidity",
@@ -182,6 +183,19 @@ cat("Building Table 1 (stratified by GLP-1 timing)...\n")
 
 # Use Fisher's exact for categorical (handles small cells; no warnings)
 # Use Kruskal-Wallis for continuous
+# Identify variables with all-zero or single-level values that would break Fisher's test
+# These get included in the table but their p-value is suppressed
+zero_variance_vars <- table1_df %>%
+  select(all_of(table1_vars)) %>%
+  summarise(across(everything(), ~ length(unique(na.omit(.))))) %>%
+  pivot_longer(everything(), names_to = "var", values_to = "n_levels") %>%
+  filter(n_levels <= 1) %>%
+  pull(var)
+
+if (length(zero_variance_vars) > 0) {
+  cat("Skipping p-value for zero-variance variables:", paste(zero_variance_vars, collapse = ", "), "\n")
+}
+
 table1_by_timing <- table1_df %>%
   select(all_of(table1_vars), glp1_timing_cat) %>%
   tbl_summary(
@@ -203,11 +217,13 @@ table1_by_timing <- table1_df %>%
   ) %>%
   add_overall(col_label = "**Overall**, N = {N}") %>%
   add_p(
+    # Skip the zero-variance vars from p-value calculation
+    include  = -any_of(zero_variance_vars),
     test     = list(
       all_continuous()  ~ "kruskal.test",
       all_categorical() ~ "fisher.test"
     ),
-    test.args = all_categorical() ~ list(simulate.p.value = TRUE, B = 10000),
+    test.args  = all_categorical() ~ list(simulate.p.value = TRUE, B = 10000),
     pvalue_fun = ~ style_pvalue(.x, digits = 3)
   ) %>%
   modify_header(
@@ -215,6 +231,15 @@ table1_by_timing <- table1_df %>%
     all_stat_cols() ~ "**{level}**, N = {n}"
   ) %>%
   modify_caption("**Table 1.** Baseline demographics and clinical characteristics, overall and by GLP-1 timing stratum") %>%
+  modify_footnote(
+    all_stat_cols() ~ paste(
+      "Continuous variables: median (Q1, Q3); categorical: n (%).",
+      "P-values: Kruskal-Wallis for continuous, Fisher exact with Monte Carlo simulation for categorical.",
+      "Baseline = closest pre-GLP-1 measurement, postpartum window. Primary tier requires >=42 days postpartum;",
+      "for early starters (<6 weeks GLP-1) the postpartum-only fallback tier is used (any day >=0 postpartum, before GLP-1, within 90 days).",
+      sep = " "
+    )
+  ) %>%
   bold_labels()
 
 # =============================================================================
@@ -286,19 +311,10 @@ writeLines(md_overall,   file.path(md_dir, "table1_overall.md"))
 
 # Build minimalist gt theme function
 nejm_style <- function(gt_tbl) {
+  n_rows <- nrow(gt_tbl[["_data"]])
+
   gt_tbl %>%
-    # Strip all default borders first
     tab_options(
-      table.border.top.style          = "hidden",
-      table.border.bottom.style       = "hidden",
-      heading.border.bottom.style     = "hidden",
-      column_labels.border.top.style  = "hidden",
-      column_labels.border.bottom.style = "hidden",
-      table_body.border.top.style     = "hidden",
-      table_body.border.bottom.style  = "hidden",
-      row_group.border.top.style      = "hidden",
-      row_group.border.bottom.style   = "hidden",
-      stub.border.style               = "hidden",
       table.font.names                = "Georgia, 'Times New Roman', serif",
       table.font.size                 = px(13),
       table.font.color                = "#000000",
@@ -308,23 +324,48 @@ nejm_style <- function(gt_tbl) {
       heading.align                   = "left",
       data_row.padding                = px(5),
       column_labels.padding           = px(8),
-      column_labels.font.weight       = "bold"
+      column_labels.font.weight       = "bold",
+      table.border.top.style          = "none",
+      table.border.bottom.style       = "none",
+      heading.border.bottom.style     = "none",
+      heading.border.lr.style         = "none",
+      column_labels.border.top.style  = "none",
+      column_labels.border.bottom.style = "none",
+      column_labels.border.lr.style   = "none",
+      table_body.border.top.style     = "none",
+      table_body.border.bottom.style  = "none",
+      table_body.hlines.style         = "none",
+      table_body.vlines.style         = "none",
+      row_group.border.top.style      = "none",
+      row_group.border.bottom.style   = "none",
+      row_group.border.left.style     = "none",
+      row_group.border.right.style    = "none",
+      stub.border.style               = "none",
+      stub.border.width               = px(0),
+      footnotes.border.bottom.style   = "none",
+      source_notes.border.bottom.style = "none"
     ) %>%
-    # Add the 3 specified borders:
-    # (1) top of header
+    tab_style(
+      style = cell_borders(sides = "all", color = "#FFFFFF", weight = px(0)),
+      locations = list(
+        cells_body(),
+        cells_column_labels(),
+        cells_title(),
+        cells_footnotes(),
+        cells_source_notes()
+      )
+    ) %>%
     tab_style(
       style = cell_borders(sides = "top", color = "#000000", weight = px(2)),
       locations = cells_column_labels()
     ) %>%
-    # (2) bottom of header
     tab_style(
       style = cell_borders(sides = "bottom", color = "#000000", weight = px(1)),
       locations = cells_column_labels()
     ) %>%
-    # (3) bottom of table body
     tab_style(
       style = cell_borders(sides = "bottom", color = "#000000", weight = px(2)),
-      locations = cells_body(rows = nrow(gt_tbl[["_data"]]))
+      locations = cells_body(rows = n_rows)
     )
 }
 
