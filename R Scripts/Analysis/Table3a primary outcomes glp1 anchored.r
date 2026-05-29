@@ -1,16 +1,15 @@
 # =============================================================================
-# postpartum-glp1: Table 3 — Primary Outcomes (Change in Weight, SBP, DBP)
+# postpartum-glp1: Table 3a — Primary Outcomes (GLP-1-anchored sensitivity)
 # -----------------------------------------------------------------------------
-# Produces:
-#   - Overall + by GLP-1 timing stratum
-#   - Continuous outcomes: median delta (Q1, Q3) with paired Wilcoxon p-value
-#     (within stratum) and Kruskal-Wallis (between strata)
-#   - Threshold outcomes: n (%) achieving event with Fisher's exact p-value
-#   - All outcomes evaluated at 3, 6, and 12 months postpartum
+# Purpose: Sensitivity analysis to Table 3. Same outcomes but measured at
+#          3 / 6 / 12 months POST-GLP-1 START instead of post-delivery.
+#          This removes the postpartum-window artifact that penalizes late
+#          starters (who don't have enough time on drug within the 12mo PP
+#          window in the delivery-anchored analysis).
 #
 # Outputs:
-#   /Results/Analysis/Tables/MD Files/    table3_*.md   (printed to console too)
-#   /Results/Analysis/Tables/HTML Files/  table3_*.html (NEJM/JAMA minimalist)
+#   /Results/Analysis/Tables/MD Files/    table3a_*.md   (printed to console)
+#   /Results/Analysis/Tables/HTML Files/  table3a_*.html (NEJM/JAMA minimalist)
 #
 # Source AFTER build_analysis_dataset_v3.R
 # =============================================================================
@@ -41,13 +40,16 @@ for (d in c(md_dir, html_dir)) {
 if (!exists("analysis_df")) {
   analysis_df <- readRDS(file.path(data_dir, "analysis_df.rds"))
 }
+if (!exists("vitals_long")) {
+  vitals_long <- readRDS(file.path(data_dir, "vitals_long.rds"))
+}
 
-cat("Loaded analysis_df:", nrow(analysis_df), "rows ×", ncol(analysis_df), "cols\n\n")
+cat("Loaded analysis_df:", nrow(analysis_df), "rows x", ncol(analysis_df), "cols\n")
+cat("Loaded vitals_long:", nrow(vitals_long), "rows\n\n")
 
 # =============================================================================
-# 1. HELPER FUNCTIONS
+# 1. HELPER FUNCTIONS (same as Table 3)
 # =============================================================================
-
 fmt_iqr <- function(x, digits = 1) {
   ok <- !is.na(x)
   if (sum(ok) == 0) return("--")
@@ -67,7 +69,6 @@ fmt_p <- function(p) {
   sprintf("%.3f", p)
 }
 
-# Within-stratum paired Wilcoxon (baseline -> follow-up)
 paired_wilcox_p <- function(baseline, followup) {
   ok <- !is.na(baseline) & !is.na(followup)
   if (sum(ok) < 5) return(NA_real_)
@@ -76,7 +77,6 @@ paired_wilcox_p <- function(baseline, followup) {
   )
 }
 
-# Between-strata Kruskal-Wallis on the delta
 kruskal_p <- function(delta, group) {
   ok <- !is.na(delta) & !is.na(group)
   if (sum(ok) < 5 || length(unique(group[ok])) < 2) return(NA_real_)
@@ -85,7 +85,6 @@ kruskal_p <- function(delta, group) {
   )
 }
 
-# Between-strata Fisher's exact for proportions
 fisher_p <- function(event, group) {
   ok <- !is.na(event) & !is.na(group)
   if (sum(ok) < 5) return(NA_real_)
@@ -97,35 +96,65 @@ fisher_p <- function(event, group) {
 }
 
 # =============================================================================
-# 2. PREPARE OUTCOME DATA
+# 2. BUILD GLP-1-ANCHORED FOLLOW-UP MEASUREMENTS FROM vitals_long
 # =============================================================================
-# Compute deltas and event flags at each timepoint using COMBINED baseline.
-# Convention: positive delta = improvement (BP down, weight down).
+# For each patient: find the closest measurement to each post-drug landmark.
+# Windows: 3mo +/- 30d, 6mo +/- 45d, 12mo +/- 60d (same widths as Table 3).
+# Target dates relative to glp1_index_date.
+
+# Helper: closest value to target days_from_glp1 within window
+closest_post_glp1 <- function(df, target_day, window_days) {
+  df %>%
+    filter(!is.na(days_from_glp1),
+           days_from_glp1 >= target_day - window_days,
+           days_from_glp1 <= target_day + window_days,
+           days_from_glp1 >= 0) %>%   # post-drug only
+    group_by(CURR_CLINIC) %>%
+    arrange(abs(days_from_glp1 - target_day), .by_group = TRUE) %>%
+    slice(1) %>%
+    ungroup() %>%
+    select(CURR_CLINIC, value)
+}
+
+# Build per-vital, per-window summary
+build_followup_wide <- function(vital_name) {
+  sub <- vitals_long %>% filter(vital == vital_name)
+  m3  <- closest_post_glp1(sub, 90,  30) %>% rename("{vital_name}_m3_glp1"  := value)
+  m6  <- closest_post_glp1(sub, 180, 45) %>% rename("{vital_name}_m6_glp1"  := value)
+  m12 <- closest_post_glp1(sub, 365, 60) %>% rename("{vital_name}_m12_glp1" := value)
+  m3 %>% full_join(m6, by = "CURR_CLINIC") %>% full_join(m12, by = "CURR_CLINIC")
+}
+
+sbp_fu_glp1    <- build_followup_wide("sbp")
+dbp_fu_glp1    <- build_followup_wide("dbp")
+weight_fu_glp1 <- build_followup_wide("weight_kg")
+
+# =============================================================================
+# 3. MERGE ONTO analysis_df AND COMPUTE DELTAS
+# =============================================================================
+# Same baseline (combined) as Table 3, but follow-up is GLP-1-anchored.
 
 outcome_df <- analysis_df %>%
+  left_join(sbp_fu_glp1,    by = "CURR_CLINIC") %>%
+  left_join(dbp_fu_glp1,    by = "CURR_CLINIC") %>%
+  left_join(weight_fu_glp1, by = "CURR_CLINIC") %>%
   mutate(
-    # SBP changes (positive = SBP drop = improvement)
-    sbp_delta_3m  = sbp_baseline_combined - sbp_m3_pp,
-    sbp_delta_6m  = sbp_baseline_combined - sbp_m6_pp,
-    sbp_delta_12m = sbp_baseline_combined - sbp_m12_pp,
+    # SBP changes (positive = drop = improvement)
+    sbp_delta_3m  = sbp_baseline_combined - sbp_m3_glp1,
+    sbp_delta_6m  = sbp_baseline_combined - sbp_m6_glp1,
+    sbp_delta_12m = sbp_baseline_combined - sbp_m12_glp1,
 
-    # DBP changes
-    dbp_delta_3m  = dbp_baseline_combined - dbp_m3_pp,
-    dbp_delta_6m  = dbp_baseline_combined - dbp_m6_pp,
-    dbp_delta_12m = dbp_baseline_combined - dbp_m12_pp,
+    # DBP
+    dbp_delta_3m  = dbp_baseline_combined - dbp_m3_glp1,
+    dbp_delta_6m  = dbp_baseline_combined - dbp_m6_glp1,
+    dbp_delta_12m = dbp_baseline_combined - dbp_m12_glp1,
 
-    # Weight changes (kg)
-    wt_delta_3m  = weight_kg_baseline_combined - weight_kg_m3_pp,
-    wt_delta_6m  = weight_kg_baseline_combined - weight_kg_m6_pp,
-    wt_delta_12m = weight_kg_baseline_combined - weight_kg_m12_pp,
+    # TBWL%
+    tbwl_3m  = (weight_kg_baseline_combined - weight_kg_m3_glp1)  / weight_kg_baseline_combined * 100,
+    tbwl_6m  = (weight_kg_baseline_combined - weight_kg_m6_glp1)  / weight_kg_baseline_combined * 100,
+    tbwl_12m = (weight_kg_baseline_combined - weight_kg_m12_glp1) / weight_kg_baseline_combined * 100,
 
-    # TBWL% (positive = weight loss = improvement)
-    tbwl_3m  = (weight_kg_baseline_combined - weight_kg_m3_pp)  / weight_kg_baseline_combined * 100,
-    tbwl_6m  = (weight_kg_baseline_combined - weight_kg_m6_pp)  / weight_kg_baseline_combined * 100,
-    tbwl_12m = (weight_kg_baseline_combined - weight_kg_m12_pp) / weight_kg_baseline_combined * 100,
-
-    # Threshold events at each timepoint (computed only for patients with both
-    # baseline and follow-up measurement at that timepoint)
+    # Threshold events
     ge5_tbwl_3m   = if_else(!is.na(tbwl_3m),  tbwl_3m  >= 5,  NA),
     ge5_tbwl_6m   = if_else(!is.na(tbwl_6m),  tbwl_6m  >= 5,  NA),
     ge5_tbwl_12m  = if_else(!is.na(tbwl_12m), tbwl_12m >= 5,  NA),
@@ -143,11 +172,8 @@ outcome_df <- analysis_df %>%
   )
 
 # =============================================================================
-# 3. BUILD ONE ROW OF THE TABLE (per outcome, per timepoint)
+# 4. ROW BUILDERS (same logic as Table 3)
 # =============================================================================
-
-# Continuous outcomes — show median delta (Q1, Q3) + paired p-value per stratum,
-# Kruskal-Wallis between strata
 build_continuous_row <- function(df, outcome_label, baseline_col, followup_col, delta_col,
                                   digits = 1) {
   groups <- levels(df$glp1_timing_cat)
@@ -168,17 +194,16 @@ build_continuous_row <- function(df, outcome_label, baseline_col, followup_col, 
   p_between <- kruskal_p(df[[delta_col]], df$glp1_timing_cat)
 
   tibble(
-    outcome   = outcome_label,
-    Overall   = stratum_cells["Overall"],
+    outcome     = outcome_label,
+    Overall     = stratum_cells["Overall"],
     `< 6 weeks` = stratum_cells["< 6 weeks"],
-    `6wk-3mo` = stratum_cells["6wk-3mo"],
-    `3-6mo`   = stratum_cells["3-6mo"],
-    `> 6mo`   = stratum_cells["> 6mo"],
+    `6wk-3mo`   = stratum_cells["6wk-3mo"],
+    `3-6mo`     = stratum_cells["3-6mo"],
+    `> 6mo`     = stratum_cells["> 6mo"],
     `p (between)` = fmt_p(p_between)
   )
 }
 
-# Threshold/event outcomes — show n/N (%) per stratum + Fisher's exact between strata
 build_event_row <- function(df, outcome_label, event_col) {
   groups <- levels(df$glp1_timing_cat)
 
@@ -193,90 +218,87 @@ build_event_row <- function(df, outcome_label, event_col) {
   p_between <- fisher_p(df[[event_col]], df$glp1_timing_cat)
 
   tibble(
-    outcome   = outcome_label,
-    Overall   = stratum_cells["Overall"],
+    outcome     = outcome_label,
+    Overall     = stratum_cells["Overall"],
     `< 6 weeks` = stratum_cells["< 6 weeks"],
-    `6wk-3mo` = stratum_cells["6wk-3mo"],
-    `3-6mo`   = stratum_cells["3-6mo"],
-    `> 6mo`   = stratum_cells["> 6mo"],
+    `6wk-3mo`   = stratum_cells["6wk-3mo"],
+    `3-6mo`     = stratum_cells["3-6mo"],
+    `> 6mo`     = stratum_cells["> 6mo"],
     `p (between)` = fmt_p(p_between)
   )
 }
 
 # =============================================================================
-# 4. ASSEMBLE TABLE 3
+# 5. ASSEMBLE TABLE 3a
 # =============================================================================
 
-table3 <- bind_rows(
+table3a <- bind_rows(
   # --- SBP block ---
   tibble(outcome = "Systolic blood pressure",
          Overall = "", `< 6 weeks` = "", `6wk-3mo` = "",
          `3-6mo` = "", `> 6mo` = "", `p (between)` = ""),
-  build_continuous_row(outcome_df, "  Change at 3 months, mmHg",
-                       "sbp_baseline_combined", "sbp_m3_pp",  "sbp_delta_3m"),
-  build_continuous_row(outcome_df, "  Change at 6 months, mmHg",
-                       "sbp_baseline_combined", "sbp_m6_pp",  "sbp_delta_6m"),
-  build_continuous_row(outcome_df, "  Change at 12 months, mmHg",
-                       "sbp_baseline_combined", "sbp_m12_pp", "sbp_delta_12m"),
-  build_event_row(outcome_df, "  >=10 mmHg drop by 3 months",  "sbp_drop10_3m"),
-  build_event_row(outcome_df, "  >=10 mmHg drop by 6 months",  "sbp_drop10_6m"),
-  build_event_row(outcome_df, "  >=10 mmHg drop by 12 months", "sbp_drop10_12m"),
+  build_continuous_row(outcome_df, "  Change at 3 months on drug, mmHg",
+                       "sbp_baseline_combined", "sbp_m3_glp1",  "sbp_delta_3m"),
+  build_continuous_row(outcome_df, "  Change at 6 months on drug, mmHg",
+                       "sbp_baseline_combined", "sbp_m6_glp1",  "sbp_delta_6m"),
+  build_continuous_row(outcome_df, "  Change at 12 months on drug, mmHg",
+                       "sbp_baseline_combined", "sbp_m12_glp1", "sbp_delta_12m"),
+  build_event_row(outcome_df, "  >=10 mmHg drop by 3 months on drug",  "sbp_drop10_3m"),
+  build_event_row(outcome_df, "  >=10 mmHg drop by 6 months on drug",  "sbp_drop10_6m"),
+  build_event_row(outcome_df, "  >=10 mmHg drop by 12 months on drug", "sbp_drop10_12m"),
 
   # --- DBP block ---
   tibble(outcome = "Diastolic blood pressure",
          Overall = "", `< 6 weeks` = "", `6wk-3mo` = "",
          `3-6mo` = "", `> 6mo` = "", `p (between)` = ""),
-  build_continuous_row(outcome_df, "  Change at 3 months, mmHg",
-                       "dbp_baseline_combined", "dbp_m3_pp",  "dbp_delta_3m"),
-  build_continuous_row(outcome_df, "  Change at 6 months, mmHg",
-                       "dbp_baseline_combined", "dbp_m6_pp",  "dbp_delta_6m"),
-  build_continuous_row(outcome_df, "  Change at 12 months, mmHg",
-                       "dbp_baseline_combined", "dbp_m12_pp", "dbp_delta_12m"),
-  build_event_row(outcome_df, "  >=5 mmHg drop by 3 months",  "dbp_drop5_3m"),
-  build_event_row(outcome_df, "  >=5 mmHg drop by 6 months",  "dbp_drop5_6m"),
-  build_event_row(outcome_df, "  >=5 mmHg drop by 12 months", "dbp_drop5_12m"),
+  build_continuous_row(outcome_df, "  Change at 3 months on drug, mmHg",
+                       "dbp_baseline_combined", "dbp_m3_glp1",  "dbp_delta_3m"),
+  build_continuous_row(outcome_df, "  Change at 6 months on drug, mmHg",
+                       "dbp_baseline_combined", "dbp_m6_glp1",  "dbp_delta_6m"),
+  build_continuous_row(outcome_df, "  Change at 12 months on drug, mmHg",
+                       "dbp_baseline_combined", "dbp_m12_glp1", "dbp_delta_12m"),
+  build_event_row(outcome_df, "  >=5 mmHg drop by 3 months on drug",  "dbp_drop5_3m"),
+  build_event_row(outcome_df, "  >=5 mmHg drop by 6 months on drug",  "dbp_drop5_6m"),
+  build_event_row(outcome_df, "  >=5 mmHg drop by 12 months on drug", "dbp_drop5_12m"),
 
-  # --- Weight block (TBWL% is the primary metric — accounts for baseline weight) ---
+  # --- Weight block (TBWL%) ---
   tibble(outcome = "Weight (TBWL%)",
          Overall = "", `< 6 weeks` = "", `6wk-3mo` = "",
          `3-6mo` = "", `> 6mo` = "", `p (between)` = ""),
-  build_continuous_row(outcome_df, "  TBWL% at 3 months",
-                       "weight_kg_baseline_combined", "weight_kg_m3_pp",  "tbwl_3m",
+  build_continuous_row(outcome_df, "  TBWL% at 3 months on drug",
+                       "weight_kg_baseline_combined", "weight_kg_m3_glp1",  "tbwl_3m",
                        digits = 1),
-  build_continuous_row(outcome_df, "  TBWL% at 6 months",
-                       "weight_kg_baseline_combined", "weight_kg_m6_pp",  "tbwl_6m",
+  build_continuous_row(outcome_df, "  TBWL% at 6 months on drug",
+                       "weight_kg_baseline_combined", "weight_kg_m6_glp1",  "tbwl_6m",
                        digits = 1),
-  build_continuous_row(outcome_df, "  TBWL% at 12 months",
-                       "weight_kg_baseline_combined", "weight_kg_m12_pp", "tbwl_12m",
+  build_continuous_row(outcome_df, "  TBWL% at 12 months on drug",
+                       "weight_kg_baseline_combined", "weight_kg_m12_glp1", "tbwl_12m",
                        digits = 1),
-  build_event_row(outcome_df, "  >=5% TBWL by 3 months",   "ge5_tbwl_3m"),
-  build_event_row(outcome_df, "  >=5% TBWL by 6 months",   "ge5_tbwl_6m"),
-  build_event_row(outcome_df, "  >=5% TBWL by 12 months",  "ge5_tbwl_12m"),
-  build_event_row(outcome_df, "  >=10% TBWL by 3 months",  "ge10_tbwl_3m"),
-  build_event_row(outcome_df, "  >=10% TBWL by 6 months",  "ge10_tbwl_6m"),
-  build_event_row(outcome_df, "  >=10% TBWL by 12 months", "ge10_tbwl_12m")
+  build_event_row(outcome_df, "  >=5% TBWL by 3 months on drug",   "ge5_tbwl_3m"),
+  build_event_row(outcome_df, "  >=5% TBWL by 6 months on drug",   "ge5_tbwl_6m"),
+  build_event_row(outcome_df, "  >=5% TBWL by 12 months on drug",  "ge5_tbwl_12m"),
+  build_event_row(outcome_df, "  >=10% TBWL by 3 months on drug",  "ge10_tbwl_3m"),
+  build_event_row(outcome_df, "  >=10% TBWL by 6 months on drug",  "ge10_tbwl_6m"),
+  build_event_row(outcome_df, "  >=10% TBWL by 12 months on drug", "ge10_tbwl_12m")
 )
 
-# Rename outcome column for display
-table3 <- table3 %>%
-  rename(`Outcome` = outcome)
+table3a <- table3a %>% rename(`Outcome` = outcome)
 
 # =============================================================================
-# 5. RENDER MD
+# 6. RENDER MD
 # =============================================================================
-md_caption <- "Table 3. Primary outcomes — change in weight, SBP, DBP from baseline at 3, 6, and 12 months postpartum"
+md_caption <- "Table 3a. Primary outcomes — GLP-1-anchored sensitivity analysis at 3, 6, and 12 months on drug"
 
-md_table3 <- knitr::kable(table3, format = "pipe", caption = md_caption) %>%
+md_table3a <- knitr::kable(table3a, format = "pipe", caption = md_caption) %>%
   paste(collapse = "\n")
 
-writeLines(md_table3, file.path(md_dir, "table3_primary_outcomes.md"))
+writeLines(md_table3a, file.path(md_dir, "table3a_primary_outcomes_glp1_anchored.md"))
 
 # =============================================================================
-# 6. RENDER HTML — NEJM/JAMA minimalist
+# 7. RENDER HTML — NEJM/JAMA minimalist
 # =============================================================================
 nejm_style <- function(gt_tbl) {
   n_rows <- nrow(gt_tbl[["_data"]])
-
   gt_tbl %>%
     tab_options(
       table.font.names                = "Georgia, 'Times New Roman', serif",
@@ -333,15 +355,14 @@ nejm_style <- function(gt_tbl) {
     )
 }
 
-# Identify header rows (SBP / DBP / Weight) and bold them
-header_row_indices <- which(table3$Outcome %in%
+header_row_indices <- which(table3a$Outcome %in%
                               c("Systolic blood pressure",
                                 "Diastolic blood pressure",
                                 "Weight (TBWL%)"))
 
-html_table3 <- table3 %>%
+html_table3a <- table3a %>%
   gt() %>%
-  tab_header(title = md("**Table 3.** Primary outcomes — change in weight, SBP, DBP from baseline at 3, 6, and 12 months postpartum")) %>%
+  tab_header(title = md("**Table 3a.** Primary outcomes — GLP-1-anchored sensitivity analysis at 3, 6, and 12 months on drug")) %>%
   cols_label(
     Outcome     = "Outcome",
     Overall     = "Overall",
@@ -351,39 +372,39 @@ html_table3 <- table3 %>%
     `> 6mo`     = "> 6mo",
     `p (between)` = "p (between)"
   ) %>%
-  # Bold the section header rows
   tab_style(
     style = cell_text(weight = "bold"),
     locations = cells_body(rows = header_row_indices)
   ) %>%
   tab_source_note(source_note = md(paste(
-    "*Continuous outcomes shown as median delta (Q1, Q3) with [n paired, p-value from Wilcoxon signed-rank within stratum].",
-    "Threshold outcomes shown as n/N (%). Positive delta indicates improvement (BP drop or weight loss).",
-    "Between-stratum p-value: Kruskal-Wallis for continuous, Fisher exact (Monte Carlo, B=10,000) for binary.",
-    "Baseline = combined primary (>=42d postpartum, before GLP-1) with postpartum-only fallback for early starters.*",
+    "*Sensitivity analysis: same outcomes as Table 3 but anchored to GLP-1 initiation, not delivery date.",
+    "Follow-up measurements taken at 3, 6, and 12 months POST-DRUG-START (closest measurement within +/-30/45/60-day window).",
+    "This isolates drug effect from postpartum window constraints. Continuous outcomes: median delta (Q1, Q3) [n paired, paired Wilcoxon p].",
+    "Threshold outcomes: n/N (%). Positive delta = improvement.",
+    "Between-stratum p: Kruskal-Wallis (continuous) / Fisher exact Monte Carlo (binary).*",
     sep = " "
   ))) %>%
   tab_source_note(source_note = md(paste(
-    "*Note: Outcomes anchored to DELIVERY DATE. Late starters (> 6mo) have a median of only ~3 months on drug at the 12mo postpartum window,",
-    "which substantially underestimates their true drug response. See Table 3a for GLP-1-anchored sensitivity analysis at matched exposure times.*",
+    "*Compared with Table 3 (delivery-anchored), this analysis allows late starters to reach full drug exposure.",
+    "Differences between strata that persist here likely reflect true biological/persistence variation, not window artifacts.*",
     sep = " "
   ))) %>%
   nejm_style()
 
-gt::gtsave(html_table3, file.path(html_dir, "table3_primary_outcomes.html"))
+gt::gtsave(html_table3a, file.path(html_dir, "table3a_primary_outcomes_glp1_anchored.html"))
 
 # =============================================================================
-# 7. PRINT TO CONSOLE
+# 8. PRINT TO CONSOLE
 # =============================================================================
 cat("\n================================================================\n")
-cat(" TABLE 3 — PRIMARY OUTCOMES (MARKDOWN)\n")
+cat(" TABLE 3a — GLP-1 ANCHORED OUTCOMES (MARKDOWN)\n")
 cat("================================================================\n\n")
-cat(md_table3, "\n\n")
+cat(md_table3a, "\n\n")
 
 cat("================================================================\n")
 cat(" FILES CREATED\n")
 cat("================================================================\n")
 cat("MD Files:\n")
-cat("  ", file.path(md_dir, "table3_primary_outcomes.md"), "\n")
+cat("  ", file.path(md_dir, "table3a_primary_outcomes_glp1_anchored.md"), "\n")
 cat("HTML Files:\n")
-cat("  ", file.path(html_dir, "table3_primary_outcomes.html"), "\n")
+cat("  ", file.path(html_dir, "table3a_primary_outcomes_glp1_anchored.html"), "\n")

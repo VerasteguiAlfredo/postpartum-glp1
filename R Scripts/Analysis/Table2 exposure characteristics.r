@@ -26,7 +26,7 @@ sys_name <- Sys.info()[["sysname"]]
 proj_root <- if (sys_name == "Darwin") {
   "/Users/alfredoverastegui/Desktop/Research/VS Code Workbook/MDH Lab/postpartum-glp1"
 } else {
-  "C:/Users/M320532/Desktop/Research/MDH Lab/postpartum-glp1"
+  "C:/Users/m320532/Desktop/Research/VS Code Projects/postpartum-glp1"
 }
 
 data_dir <- file.path(proj_root, "data_processed")

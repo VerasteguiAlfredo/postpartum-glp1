@@ -47,3 +47,9 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# ============================================
+# Sensitive clinical datasets (DO NOT UPLOAD)
+# ============================================
+
+Perinatal Outcomes_files/
