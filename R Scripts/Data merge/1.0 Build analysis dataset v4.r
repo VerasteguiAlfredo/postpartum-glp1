@@ -42,7 +42,7 @@ sys_name <- Sys.info()[["sysname"]]
 proj_root <- if (sys_name == "Darwin") {
   "/Users/alfredoverastegui/Desktop/Research/VS Code Workbook/MDH Lab/postpartum-glp1"
 } else {
-  "C:/Users/M320532/Desktop/Research/MDH Lab/postpartum-glp1"
+  "C:/Users/m320532/Desktop/Research/VS Code Projects/postpartum-glp1"
 }
 out_dir <- file.path(proj_root, "data_processed")
 if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
@@ -119,10 +119,18 @@ consolidate_race <- function(primary, secondary1, secondary2) {
 }
 
 # =============================================================================
-# 1. UNPACK data_list
+# 1. VERIFY DATA IS LOADED
 # =============================================================================
-stopifnot(exists("data_list"))
-list2env(data_list, envir = environment())
+required_tables <- c("cohort", "demo", "ob", "bp_flow", "weight_flow",
+                     "height_flow", "dx", "labs", "smoking", "alc_ppi",
+                     "alc_social", "ecg", "echo_ef", "glp1_meds", "ord_meds")
+
+missing <- required_tables[!sapply(required_tables, exists)]
+if (length(missing) > 0) {
+  stop("Missing datasets — please run the loader script first:\n  ",
+       paste(missing, collapse = ", "))
+}
+cat("All required datasets found in environment.\n")
 
 # =============================================================================
 # 2. COHORT BACKBONE
@@ -263,6 +271,16 @@ glp1_postpartum <- glp1_postpartum_raw %>%
   ),
   glp1_timing_cat = factor(glp1_timing_cat,
                            levels = c("< 6 weeks", "6wk-3mo", "3-6mo", "> 6mo")),
+  # GLP-1 timing 2-level (per Dr. Hurtado): collapses to early / late at 6 months
+  # for primary analyses where small-cell stability is a concern. The 4-level
+  # version remains available for sensitivity analyses.
+  glp1_timing_2cat = case_when(
+    days_pp_to_glp1 <  180                             ~ "Early (< 6 months)",
+    days_pp_to_glp1 >= 180                             ~ "Late (>= 6 months)",
+    TRUE                                               ~ NA_character_
+  ),
+  glp1_timing_2cat = factor(glp1_timing_2cat,
+                            levels = c("Early (< 6 months)", "Late (>= 6 months)")),
   # Persistence categorical (proxy for treatment duration)
   glp1_persistence_cat = case_when(
     is.na(glp1_duration_days)             ~ "Unknown",
@@ -352,7 +370,7 @@ vitals_long <- bind_rows(
   select(-any_of("delv_date")) %>%
   inner_join(exposure_df %>% select(CURR_CLINIC, delv_date, index_date,
                                     glp1_postpartum_exposed, glp1_index_date,
-                                    days_pp_to_glp1, glp1_timing_cat),
+                                    days_pp_to_glp1, glp1_timing_cat, glp1_timing_2cat),
              by = "CURR_CLINIC") %>%
   # Keep measurements from 90d before delivery to 12mo after
   filter(meas_date >= delv_date - 90,
@@ -545,7 +563,7 @@ wt_event <- compute_events(vitals_long, "weight_kg", weight_summary, "weight_kg_
 
 events_df <- exposure_df %>%
   select(CURR_CLINIC, glp1_postpartum_exposed, glp1_index_date,
-         days_pp_to_glp1, glp1_timing_cat) %>%
+         days_pp_to_glp1, glp1_timing_cat, glp1_timing_2cat) %>%
   left_join(sbp_event, by = "CURR_CLINIC") %>%
   left_join(dbp_event, by = "CURR_CLINIC") %>%
   left_join(wt_event,  by = "CURR_CLINIC")
@@ -1398,6 +1416,9 @@ cat("Pre-delivery GLP-1 exposed:     ", sum(exposure_df$glp1_predelivery_any), "
 cat("GLP-1 timing distribution:\n")
 print(table(exposure_df$glp1_timing_cat, useNA = "ifany"))
 cat("\n")
+cat("GLP-1 timing 2-level (primary analysis grouping):\n")
+print(table(exposure_df$glp1_timing_2cat, useNA = "ifany"))
+cat("\n")
 
 cat("GLP-1 persistence distribution:\n")
 print(table(exposure_df$glp1_persistence_cat, useNA = "ifany"))
@@ -1479,7 +1500,7 @@ analysis_df <- cohort_clean %>%
                               by = "CURR_CLINIC") %>%
   left_join(events_df %>%
               select(-glp1_postpartum_exposed, -glp1_index_date,
-                     -days_pp_to_glp1, -glp1_timing_cat),
+                     -days_pp_to_glp1, -glp1_timing_cat, -glp1_timing_2cat),
                               by = "CURR_CLINIC") %>%
   left_join(comorbidities,    by = "CURR_CLINIC") %>%
   left_join(labs_wide,        by = "CURR_CLINIC") %>%

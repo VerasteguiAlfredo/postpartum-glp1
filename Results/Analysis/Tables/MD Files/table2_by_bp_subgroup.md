@@ -3,12 +3,12 @@ Table: Table 2. GLP-1 exposure characteristics, overall and by BP subgroup
 |**GLP-1 Exposure Characteristic**          |**Overall**, N = 703 |**Normal/Elevated BP**, N = 369 |**Stage 1+ HTN (>=130/80)**, N = 334 |**p-value** |
 |:------------------------------------------|:--------------------|:-------------------------------|:------------------------------------|:-----------|
 |__Days from delivery to GLP-1 initiation__ |207.0 (123.0, 283.0) |213.0 (126.0, 280.0)            |200.5 (120.0, 285.0)                 |0.995       |
-|__GLP-1 initiation timing__                |NA                   |NA                              |NA                                   |0.165       |
+|__GLP-1 initiation timing__                |NA                   |NA                              |NA                                   |0.172       |
 |< 6 weeks                                  |24 (3.4%)            |17 (4.6%)                       |7 (2.1%)                             |NA          |
 |6wk-3mo                                    |84 (12%)             |39 (11%)                        |45 (13%)                             |NA          |
 |3-6mo                                      |189 (27%)            |95 (26%)                        |94 (28%)                             |NA          |
 |> 6mo                                      |406 (58%)            |218 (59%)                       |188 (56%)                            |NA          |
-|__First postpartum GLP-1 agent__           |NA                   |NA                              |NA                                   |0.667       |
+|__First postpartum GLP-1 agent__           |NA                   |NA                              |NA                                   |0.664       |
 |Semaglutide (Ozempic, Wegovy, Rybelsus)    |325 (46%)            |167 (45%)                       |158 (47%)                            |NA          |
 |Tirzepatide (Mounjaro, Zepbound)           |298 (42%)            |165 (45%)                       |133 (40%)                            |NA          |
 |Liraglutide (Victoza, Saxenda)             |56 (8.0%)            |26 (7.0%)                       |30 (9.0%)                            |NA          |
@@ -21,7 +21,7 @@ Table: Table 2. GLP-1 exposure characteristics, overall and by BP subgroup
 |T2DM-branded                               |177 (25%)            |85 (23%)                        |92 (28%)                             |NA          |
 |Missing                                    |1                    |0                               |1                                    |NA          |
 |__Number of GLP-1 orders postpartum__      |4.0 (2.0, 8.0)       |4.0 (2.0, 8.0)                  |5.0 (2.0, 7.0)                       |0.841       |
-|__Number of distinct GLP-1 agents__        |NA                   |NA                              |NA                                   |0.371       |
+|__Number of distinct GLP-1 agents__        |NA                   |NA                              |NA                                   |0.369       |
 |1                                          |536 (76%)            |285 (77%)                       |251 (75%)                            |NA          |
 |2                                          |149 (21%)            |77 (21%)                        |72 (22%)                             |NA          |
 |3                                          |17 (2.4%)            |6 (1.6%)                        |11 (3.3%)                            |NA          |

@@ -197,9 +197,9 @@ if (length(zero_variance_vars) > 0) {
 }
 
 table1_by_timing <- table1_df %>%
-  select(all_of(table1_vars), glp1_timing_cat) %>%
+  select(all_of(table1_vars), glp1_timing_2cat) %>%
   tbl_summary(
-    by      = glp1_timing_cat,
+    by      = glp1_timing_2cat,
     label   = label_map,
     type    = list(
       all_continuous() ~ "continuous",
@@ -220,21 +220,21 @@ table1_by_timing <- table1_df %>%
     # Skip the zero-variance vars from p-value calculation
     include  = -any_of(zero_variance_vars),
     test     = list(
-      all_continuous()  ~ "kruskal.test",
+      all_continuous()  ~ "wilcox.test",
       all_categorical() ~ "fisher.test"
     ),
-    test.args  = all_categorical() ~ list(simulate.p.value = TRUE, B = 10000),
     pvalue_fun = ~ style_pvalue(.x, digits = 3)
   ) %>%
   modify_header(
     label = "**Baseline Characteristic**",
     all_stat_cols() ~ "**{level}**, N = {n}"
   ) %>%
-  modify_caption("**Table 1.** Baseline demographics and clinical characteristics, overall and by GLP-1 timing stratum") %>%
+  modify_caption("**Table 1.** Baseline demographics and clinical characteristics, overall and by GLP-1 initiation timing (early vs late)") %>%
   modify_footnote(
     all_stat_cols() ~ paste(
       "Continuous variables: median (Q1, Q3); categorical: n (%).",
-      "P-values: Kruskal-Wallis for continuous, Fisher exact with Monte Carlo simulation for categorical.",
+      "P-values: Wilcoxon rank-sum for continuous, Fisher exact for categorical.",
+      "Early = GLP-1 initiated <6 months postpartum; Late = GLP-1 initiated >=6 months postpartum.",
       "Baseline = closest pre-GLP-1 measurement, postpartum window. Primary tier requires >=42 days postpartum;",
       "for early starters (<6 weeks GLP-1) the postpartum-only fallback tier is used (any day >=0 postpartum, before GLP-1, within 90 days).",
       sep = " "
@@ -285,7 +285,7 @@ tbl_to_md <- function(tbl, caption) {
 
 md_by_timing <- tbl_to_md(
   table1_by_timing,
-  "Table 1. Baseline demographics and clinical characteristics, overall and by GLP-1 timing stratum"
+  "Table 1. Baseline demographics and clinical characteristics, overall and by GLP-1 initiation timing (early vs late)"
 )
 
 md_overall <- tbl_to_md(
@@ -294,7 +294,7 @@ md_overall <- tbl_to_md(
 )
 
 # Save MD files
-writeLines(md_by_timing, file.path(md_dir, "table1_by_timing.md"))
+writeLines(md_by_timing, file.path(md_dir, "table1_by_timing_2cat.md"))
 writeLines(md_overall,   file.path(md_dir, "table1_overall.md"))
 
 # =============================================================================
@@ -377,14 +377,14 @@ html_overall <- table1_overall %>%
   as_gt() %>%
   nejm_style()
 
-gt::gtsave(html_by_timing, file.path(html_dir, "table1_by_timing.html"))
+gt::gtsave(html_by_timing, file.path(html_dir, "table1_by_timing_2cat.html"))
 gt::gtsave(html_overall,   file.path(html_dir, "table1_overall.html"))
 
 # =============================================================================
 # 7. PRINT MD TO CONSOLE
 # =============================================================================
 cat("\n================================================================\n")
-cat(" TABLE 1 — STRATIFIED BY GLP-1 TIMING (MARKDOWN)\n")
+cat(" TABLE 1 — STRATIFIED BY GLP-1 TIMING, EARLY vs LATE (MARKDOWN)\n")
 cat("================================================================\n\n")
 cat(md_by_timing, "\n\n")
 
@@ -397,8 +397,8 @@ cat("================================================================\n")
 cat(" FILES CREATED\n")
 cat("================================================================\n")
 cat("MD Files:\n")
-cat("  ", file.path(md_dir, "table1_by_timing.md"), "\n")
+cat("  ", file.path(md_dir, "table1_by_timing_2cat.md"), "\n")
 cat("  ", file.path(md_dir, "table1_overall.md"), "\n")
 cat("HTML Files:\n")
-cat("  ", file.path(html_dir, "table1_by_timing.html"), "\n")
+cat("  ", file.path(html_dir, "table1_by_timing_2cat.html"), "\n")
 cat("  ", file.path(html_dir, "table1_overall.html"), "\n")

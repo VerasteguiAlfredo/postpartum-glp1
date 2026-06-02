@@ -5,7 +5,6 @@
 #   - Overall column (full cohort)
 #   - Stratified by BP subgroup (Normal/Elevated vs Stage 1+ HTN) for the
 #     subgroup analysis support
-#
 # Outputs:
 #   /Results/Analysis/Tables/MD Files/    table2_*.md   (printed to console too)
 #   /Results/Analysis/Tables/HTML Files/  table2_*.html (NEJM/JAMA minimalist)
