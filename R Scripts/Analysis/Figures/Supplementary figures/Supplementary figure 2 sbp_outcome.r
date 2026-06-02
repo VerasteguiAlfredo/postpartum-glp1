@@ -28,7 +28,7 @@ proj_root <- if (sys_name == "Darwin") {
   "C:/Users/m320532/Desktop/Research/VS Code Projects/postpartum-glp1"
 }
 data_dir <- file.path(proj_root, "data_processed")
-fig_dir  <- file.path(proj_root, "Results", "Analysis", "Figures")
+fig_dir  <- file.path(proj_root, "Results", "Analysis", "Supplementary Material", "Figures")
 if (!dir.exists(fig_dir)) dir.create(fig_dir, recursive = TRUE)
 
 if (!exists("analysis_df")) analysis_df <- readRDS(file.path(data_dir, "analysis_df.rds"))
@@ -148,9 +148,9 @@ panel_b <- ggbarstats(
 # =============================================================================
 # SAVE INDIVIDUAL PANELS (no tag), 600 dpi
 # =============================================================================
-ggsave(file.path(fig_dir, "Figure2A_tbwl_by_timing.png"), panel_a,
+ggsave(file.path(fig_dir, "SuppFigure2A_tbwl_by_timing.png"), panel_a,
        width = 7, height = 5.5, dpi = 600, bg = "white")
-ggsave(file.path(fig_dir, "Figure2B_responder_rates.png"), panel_b,
+ggsave(file.path(fig_dir, "SuppFigure2B_responder_rates.png"), panel_b,
        width = 7, height = 5.5, dpi = 600, bg = "white")
 
 # =============================================================================
@@ -159,7 +159,7 @@ ggsave(file.path(fig_dir, "Figure2B_responder_rates.png"), panel_b,
 fig2 <- (panel_a + panel_b) +
   plot_annotation(
     tag_levels = "A",
-    title = "Figure 2. Weight loss at 6 months on GLP-1 therapy, by initiation timing",
+    title = "Supplementary Figure 2. Weight loss at 6 months on GLP-1 therapy, by initiation timing",
     theme = theme(plot.title = element_text(face = "bold", size = 14,
                                             margin = margin(b = 8)))
   ) &
@@ -171,11 +171,10 @@ ggsave(file.path(fig_dir, "Figure2_weight_loss_6mo.pdf"), fig2,
        width = 15, height = 6.5, bg = "white")
 
 cat("================================================================\n")
-cat(" FIGURE 2 SAVED (600 dpi)\n")
+cat(" SUPPLEMENTARY FIGURE 2 SAVED (600 dpi)\n")
 cat("================================================================\n")
 cat("Composite (with A/B tags):\n")
-cat("  Figure2_weight_loss_6mo.png / .pdf\n")
+cat("  SuppFigure2_weight_loss_6mo.png / .pdf\n")
 cat("Individual panels (no tags):\n")
-cat("  Figure2A_tbwl_by_timing.png\n")
-cat("  Figure2B_responder_rates.png\n")
-cat("Location:", fig_dir, "\n")
+cat("  SuppFigure2A_tbwl_by_timing.png\n")
+cat("  SuppFigure2B_responder_rates.png\n")

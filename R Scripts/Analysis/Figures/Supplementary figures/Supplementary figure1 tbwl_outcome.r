@@ -26,7 +26,7 @@ proj_root <- if (sys_name == "Darwin") {
   "C:/Users/m320532/Desktop/Research/VS Code Projects/postpartum-glp1"
 }
 data_dir <- file.path(proj_root, "data_processed")
-fig_dir  <- file.path(proj_root, "Results", "Analysis", "Figures")
+fig_dir  <- file.path(proj_root, "Results", "Analysis", "Supplementary Material", "Figures")
 if (!dir.exists(fig_dir)) dir.create(fig_dir, recursive = TRUE)
 
 if (!exists("analysis_df")) analysis_df <- readRDS(file.path(data_dir, "analysis_df.rds"))
@@ -177,7 +177,7 @@ fig1 <- ggplot(traj_df, aes(x = days_from_glp1, y = tbwl_pct,
   scale_x_continuous(breaks = seq(0, 540, 90),
                      labels = c("0", "3", "6", "9", "12", "15", "18")) +
   coord_cartesian(ylim = c(-5, ymax), xlim = c(0, 540)) +
-  labs(title = "Figure 1. Weight-loss trajectory by time on GLP-1 therapy",
+  labs(title = "Supplementary Figure 1. Weight-loss trajectory by time on GLP-1 therapy",
        subtitle = paste0("Total body weight loss (%) from baseline, anchored to GLP-1 initiation. ",
                          "Dashed lines mark 3/6/12-month landmarks; p-values are\n",
                          "Kruskal-Wallis between timing strata at each landmark."),
@@ -185,14 +185,14 @@ fig1 <- ggplot(traj_df, aes(x = days_from_glp1, y = tbwl_pct,
   theme_pub() +
   guides(color = guide_legend(nrow = 1), fill = guide_legend(nrow = 1))
 
-ggsave(file.path(fig_dir, "Figure1_tbwl_trajectory.png"), fig1,
+ggsave(file.path(fig_dir, "SuppFigure1_tbwl_trajectory.png"), fig1,
        width = 9, height = 6.5, dpi = 600, bg = "white")
-ggsave(file.path(fig_dir, "Figure1_tbwl_trajectory.pdf"), fig1,
+ggsave(file.path(fig_dir, "SuppFigure1_tbwl_trajectory.pdf"), fig1,
        width = 9, height = 6.5, bg = "white")
 
 cat("================================================================\n")
-cat(" FIGURE 1 SAVED (600 dpi)\n")
+cat(" SUPPLEMENTARY FIGURE 1 SAVED (600 dpi)\n")
 cat("================================================================\n")
-cat("  Figure1_tbwl_trajectory.png\n")
-cat("  Figure1_tbwl_trajectory.pdf\n")
+cat("  SuppFigure1_tbwl_trajectory.png\n")
+cat("  SuppFigure1_tbwl_trajectory.pdf\n")
 cat("Location:", fig_dir, "\n")

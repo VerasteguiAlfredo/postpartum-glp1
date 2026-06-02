@@ -1,15 +1,15 @@
 # =============================================================================
-# postpartum-glp1: Table 3a — Primary Outcomes (GLP-1-anchored sensitivity)
+# postpartum-glp1: Supplementary Table 2 — Primary Outcomes (GLP-1-anchored sensitivity)
 # -----------------------------------------------------------------------------
-# Purpose: Sensitivity analysis to Table 3. Same outcomes but measured at
-#          3 / 6 / 12 months POST-GLP-1 START instead of post-delivery.
-#          This removes the postpartum-window artifact that penalizes late
-#          starters (who don't have enough time on drug within the 12mo PP
-#          window in the delivery-anchored analysis).
+# Purpose: Sensitivity analysis to Supplementary Table 1. Same outcomes but
+#          measured at 3 / 6 / 12 months POST-GLP-1 START instead of
+#          post-delivery. This removes the postpartum-window artifact that
+#          penalizes late starters (who don't have enough time on drug within
+#          the 12mo PP window in the delivery-anchored analysis).
 #
 # Outputs:
-#   /Results/Analysis/Tables/MD Files/    table3a_*.md   (printed to console)
-#   /Results/Analysis/Tables/HTML Files/  table3a_*.html (NEJM/JAMA minimalist)
+#   /Results/Analysis/Supplementary Material/MD Files/    supplementary_table2_*.md
+#   /Results/Analysis/Supplementary Material/HTML Files/  supplementary_table2_*.html
 #
 # Source AFTER build_analysis_dataset_v3.R
 # =============================================================================
@@ -31,8 +31,8 @@ proj_root <- if (sys_name == "Darwin") {
 }
 
 data_dir <- file.path(proj_root, "data_processed")
-md_dir   <- file.path(proj_root, "Results", "Analysis", "Tables", "MD Files")
-html_dir <- file.path(proj_root, "Results", "Analysis", "Tables", "HTML Files")
+md_dir   <- file.path(proj_root, "Results", "Analysis", "Supplementary Material", "MD Files")
+html_dir <- file.path(proj_root, "Results", "Analysis", "Supplementary Material", "HTML Files")
 for (d in c(md_dir, html_dir)) {
   if (!dir.exists(d)) dir.create(d, recursive = TRUE)
 }
@@ -48,7 +48,7 @@ cat("Loaded analysis_df:", nrow(analysis_df), "rows x", ncol(analysis_df), "cols
 cat("Loaded vitals_long:", nrow(vitals_long), "rows\n\n")
 
 # =============================================================================
-# 1. HELPER FUNCTIONS (same as Table 3)
+# 1. HELPER FUNCTIONS
 # =============================================================================
 fmt_iqr <- function(x, digits = 1) {
   ok <- !is.na(x)
@@ -98,17 +98,12 @@ fisher_p <- function(event, group) {
 # =============================================================================
 # 2. BUILD GLP-1-ANCHORED FOLLOW-UP MEASUREMENTS FROM vitals_long
 # =============================================================================
-# For each patient: find the closest measurement to each post-drug landmark.
-# Windows: 3mo +/- 30d, 6mo +/- 45d, 12mo +/- 60d (same widths as Table 3).
-# Target dates relative to glp1_index_date.
-
-# Helper: closest value to target days_from_glp1 within window
 closest_post_glp1 <- function(df, target_day, window_days) {
   df %>%
     filter(!is.na(days_from_glp1),
            days_from_glp1 >= target_day - window_days,
            days_from_glp1 <= target_day + window_days,
-           days_from_glp1 >= 0) %>%   # post-drug only
+           days_from_glp1 >= 0) %>%
     group_by(CURR_CLINIC) %>%
     arrange(abs(days_from_glp1 - target_day), .by_group = TRUE) %>%
     slice(1) %>%
@@ -116,7 +111,6 @@ closest_post_glp1 <- function(df, target_day, window_days) {
     select(CURR_CLINIC, value)
 }
 
-# Build per-vital, per-window summary
 build_followup_wide <- function(vital_name) {
   sub <- vitals_long %>% filter(vital == vital_name)
   m3  <- closest_post_glp1(sub, 90,  30) %>% rename("{vital_name}_m3_glp1"  := value)
@@ -132,29 +126,23 @@ weight_fu_glp1 <- build_followup_wide("weight_kg")
 # =============================================================================
 # 3. MERGE ONTO analysis_df AND COMPUTE DELTAS
 # =============================================================================
-# Same baseline (combined) as Table 3, but follow-up is GLP-1-anchored.
-
 outcome_df <- analysis_df %>%
   left_join(sbp_fu_glp1,    by = "CURR_CLINIC") %>%
   left_join(dbp_fu_glp1,    by = "CURR_CLINIC") %>%
   left_join(weight_fu_glp1, by = "CURR_CLINIC") %>%
   mutate(
-    # SBP changes (positive = drop = improvement)
     sbp_delta_3m  = sbp_baseline_combined - sbp_m3_glp1,
     sbp_delta_6m  = sbp_baseline_combined - sbp_m6_glp1,
     sbp_delta_12m = sbp_baseline_combined - sbp_m12_glp1,
 
-    # DBP
     dbp_delta_3m  = dbp_baseline_combined - dbp_m3_glp1,
     dbp_delta_6m  = dbp_baseline_combined - dbp_m6_glp1,
     dbp_delta_12m = dbp_baseline_combined - dbp_m12_glp1,
 
-    # TBWL%
     tbwl_3m  = (weight_kg_baseline_combined - weight_kg_m3_glp1)  / weight_kg_baseline_combined * 100,
     tbwl_6m  = (weight_kg_baseline_combined - weight_kg_m6_glp1)  / weight_kg_baseline_combined * 100,
     tbwl_12m = (weight_kg_baseline_combined - weight_kg_m12_glp1) / weight_kg_baseline_combined * 100,
 
-    # Threshold events
     ge5_tbwl_3m   = if_else(!is.na(tbwl_3m),  tbwl_3m  >= 5,  NA),
     ge5_tbwl_6m   = if_else(!is.na(tbwl_6m),  tbwl_6m  >= 5,  NA),
     ge5_tbwl_12m  = if_else(!is.na(tbwl_12m), tbwl_12m >= 5,  NA),
@@ -172,7 +160,7 @@ outcome_df <- analysis_df %>%
   )
 
 # =============================================================================
-# 4. ROW BUILDERS (same logic as Table 3)
+# 4. ROW BUILDERS
 # =============================================================================
 build_continuous_row <- function(df, outcome_label, baseline_col, followup_col, delta_col,
                                   digits = 1) {
@@ -185,7 +173,7 @@ build_continuous_row <- function(df, outcome_label, baseline_col, followup_col, 
     if (n_paired == 0) {
       "--"
     } else {
-      iqr_str <- fmt_iqr(delta_vals, digits = digits)
+      iqr_str  <- fmt_iqr(delta_vals, digits = digits)
       p_within <- paired_wilcox_p(sub[[baseline_col]], sub[[followup_col]])
       sprintf("%s [n=%d, p=%s]", iqr_str, n_paired, fmt_p(p_within))
     }
@@ -194,12 +182,12 @@ build_continuous_row <- function(df, outcome_label, baseline_col, followup_col, 
   p_between <- kruskal_p(df[[delta_col]], df$glp1_timing_cat)
 
   tibble(
-    outcome     = outcome_label,
-    Overall     = stratum_cells["Overall"],
-    `< 6 weeks` = stratum_cells["< 6 weeks"],
-    `6wk-3mo`   = stratum_cells["6wk-3mo"],
-    `3-6mo`     = stratum_cells["3-6mo"],
-    `> 6mo`     = stratum_cells["> 6mo"],
+    outcome       = outcome_label,
+    Overall       = stratum_cells["Overall"],
+    `< 6 weeks`   = stratum_cells["< 6 weeks"],
+    `6wk-3mo`     = stratum_cells["6wk-3mo"],
+    `3-6mo`       = stratum_cells["3-6mo"],
+    `> 6mo`       = stratum_cells["> 6mo"],
     `p (between)` = fmt_p(p_between)
   )
 }
@@ -208,8 +196,8 @@ build_event_row <- function(df, outcome_label, event_col) {
   groups <- levels(df$glp1_timing_cat)
 
   stratum_cells <- sapply(c("Overall", groups), function(g) {
-    sub <- if (g == "Overall") df else df %>% filter(glp1_timing_cat == g)
-    ev  <- sub[[event_col]]
+    sub     <- if (g == "Overall") df else df %>% filter(glp1_timing_cat == g)
+    ev      <- sub[[event_col]]
     n_total <- sum(!is.na(ev))
     n_event <- sum(ev, na.rm = TRUE)
     fmt_pct(n_event, n_total)
@@ -218,21 +206,20 @@ build_event_row <- function(df, outcome_label, event_col) {
   p_between <- fisher_p(df[[event_col]], df$glp1_timing_cat)
 
   tibble(
-    outcome     = outcome_label,
-    Overall     = stratum_cells["Overall"],
-    `< 6 weeks` = stratum_cells["< 6 weeks"],
-    `6wk-3mo`   = stratum_cells["6wk-3mo"],
-    `3-6mo`     = stratum_cells["3-6mo"],
-    `> 6mo`     = stratum_cells["> 6mo"],
+    outcome       = outcome_label,
+    Overall       = stratum_cells["Overall"],
+    `< 6 weeks`   = stratum_cells["< 6 weeks"],
+    `6wk-3mo`     = stratum_cells["6wk-3mo"],
+    `3-6mo`       = stratum_cells["3-6mo"],
+    `> 6mo`       = stratum_cells["> 6mo"],
     `p (between)` = fmt_p(p_between)
   )
 }
 
 # =============================================================================
-# 5. ASSEMBLE TABLE 3a
+# 5. ASSEMBLE SUPPLEMENTARY TABLE 2
 # =============================================================================
-
-table3a <- bind_rows(
+supp_table2 <- bind_rows(
   # --- SBP block ---
   tibble(outcome = "Systolic blood pressure",
          Overall = "", `< 6 weeks` = "", `6wk-3mo` = "",
@@ -282,17 +269,18 @@ table3a <- bind_rows(
   build_event_row(outcome_df, "  >=10% TBWL by 12 months on drug", "ge10_tbwl_12m")
 )
 
-table3a <- table3a %>% rename(`Outcome` = outcome)
+supp_table2 <- supp_table2 %>% rename(`Outcome` = outcome)
 
 # =============================================================================
 # 6. RENDER MD
 # =============================================================================
-md_caption <- "Table 3a. Primary outcomes — GLP-1-anchored sensitivity analysis at 3, 6, and 12 months on drug"
+md_caption <- "Supplementary Table 2. Primary outcomes — GLP-1-anchored sensitivity analysis at 3, 6, and 12 months on drug"
 
-md_table3a <- knitr::kable(table3a, format = "pipe", caption = md_caption) %>%
+md_supp_table2 <- knitr::kable(supp_table2, format = "pipe", caption = md_caption) %>%
   paste(collapse = "\n")
 
-writeLines(md_table3a, file.path(md_dir, "table3a_primary_outcomes_glp1_anchored.md"))
+writeLines(md_supp_table2,
+           file.path(md_dir, "supplementary_table2_primary_outcomes_glp1_anchored.md"))
 
 # =============================================================================
 # 7. RENDER HTML — NEJM/JAMA minimalist
@@ -301,35 +289,35 @@ nejm_style <- function(gt_tbl) {
   n_rows <- nrow(gt_tbl[["_data"]])
   gt_tbl %>%
     tab_options(
-      table.font.names                = "Georgia, 'Times New Roman', serif",
-      table.font.size                 = px(12),
-      table.font.color                = "#000000",
-      table.background.color          = "#FFFFFF",
-      heading.title.font.size         = px(15),
-      heading.title.font.weight       = "bold",
-      heading.align                   = "left",
-      data_row.padding                = px(4),
-      column_labels.padding           = px(8),
-      column_labels.font.weight       = "bold",
-      table.border.top.style          = "none",
-      table.border.bottom.style       = "none",
-      heading.border.bottom.style     = "none",
-      heading.border.lr.style         = "none",
-      column_labels.border.top.style  = "none",
+      table.font.names                  = "Georgia, 'Times New Roman', serif",
+      table.font.size                   = px(12),
+      table.font.color                  = "#000000",
+      table.background.color            = "#FFFFFF",
+      heading.title.font.size           = px(15),
+      heading.title.font.weight         = "bold",
+      heading.align                     = "left",
+      data_row.padding                  = px(4),
+      column_labels.padding             = px(8),
+      column_labels.font.weight         = "bold",
+      table.border.top.style            = "none",
+      table.border.bottom.style         = "none",
+      heading.border.bottom.style       = "none",
+      heading.border.lr.style           = "none",
+      column_labels.border.top.style    = "none",
       column_labels.border.bottom.style = "none",
-      column_labels.border.lr.style   = "none",
-      table_body.border.top.style     = "none",
-      table_body.border.bottom.style  = "none",
-      table_body.hlines.style         = "none",
-      table_body.vlines.style         = "none",
-      row_group.border.top.style      = "none",
-      row_group.border.bottom.style   = "none",
-      row_group.border.left.style     = "none",
-      row_group.border.right.style    = "none",
-      stub.border.style               = "none",
-      stub.border.width               = px(0),
-      footnotes.border.bottom.style   = "none",
-      source_notes.border.bottom.style = "none"
+      column_labels.border.lr.style     = "none",
+      table_body.border.top.style       = "none",
+      table_body.border.bottom.style    = "none",
+      table_body.hlines.style           = "none",
+      table_body.vlines.style           = "none",
+      row_group.border.top.style        = "none",
+      row_group.border.bottom.style     = "none",
+      row_group.border.left.style       = "none",
+      row_group.border.right.style      = "none",
+      stub.border.style                 = "none",
+      stub.border.width                 = px(0),
+      footnotes.border.bottom.style     = "none",
+      source_notes.border.bottom.style  = "none"
     ) %>%
     tab_style(
       style = cell_borders(sides = "all", color = "#FFFFFF", weight = px(0)),
@@ -355,21 +343,21 @@ nejm_style <- function(gt_tbl) {
     )
 }
 
-header_row_indices <- which(table3a$Outcome %in%
+header_row_indices <- which(supp_table2$Outcome %in%
                               c("Systolic blood pressure",
                                 "Diastolic blood pressure",
                                 "Weight (TBWL%)"))
 
-html_table3a <- table3a %>%
+html_supp_table2 <- supp_table2 %>%
   gt() %>%
-  tab_header(title = md("**Table 3a.** Primary outcomes — GLP-1-anchored sensitivity analysis at 3, 6, and 12 months on drug")) %>%
+  tab_header(title = md("**Supplementary Table 2.** Primary outcomes — GLP-1-anchored sensitivity analysis at 3, 6, and 12 months on drug")) %>%
   cols_label(
-    Outcome     = "Outcome",
-    Overall     = "Overall",
-    `< 6 weeks` = "< 6 weeks",
-    `6wk-3mo`   = "6wk-3mo",
-    `3-6mo`     = "3-6mo",
-    `> 6mo`     = "> 6mo",
+    Outcome       = "Outcome",
+    Overall       = "Overall",
+    `< 6 weeks`   = "< 6 weeks",
+    `6wk-3mo`     = "6wk-3mo",
+    `3-6mo`       = "3-6mo",
+    `> 6mo`       = "> 6mo",
     `p (between)` = "p (between)"
   ) %>%
   tab_style(
@@ -377,7 +365,7 @@ html_table3a <- table3a %>%
     locations = cells_body(rows = header_row_indices)
   ) %>%
   tab_source_note(source_note = md(paste(
-    "*Sensitivity analysis: same outcomes as Table 3 but anchored to GLP-1 initiation, not delivery date.",
+    "*Sensitivity analysis: same outcomes as Supplementary Table 1 but anchored to GLP-1 initiation, not delivery date.",
     "Follow-up measurements taken at 3, 6, and 12 months POST-DRUG-START (closest measurement within +/-30/45/60-day window).",
     "This isolates drug effect from postpartum window constraints. Continuous outcomes: median delta (Q1, Q3) [n paired, paired Wilcoxon p].",
     "Threshold outcomes: n/N (%). Positive delta = improvement.",
@@ -385,26 +373,27 @@ html_table3a <- table3a %>%
     sep = " "
   ))) %>%
   tab_source_note(source_note = md(paste(
-    "*Compared with Table 3 (delivery-anchored), this analysis allows late starters to reach full drug exposure.",
+    "*Compared with Supplementary Table 1 (delivery-anchored), this analysis allows late starters to reach full drug exposure.",
     "Differences between strata that persist here likely reflect true biological/persistence variation, not window artifacts.*",
     sep = " "
   ))) %>%
   nejm_style()
 
-gt::gtsave(html_table3a, file.path(html_dir, "table3a_primary_outcomes_glp1_anchored.html"))
+gt::gtsave(html_supp_table2,
+           file.path(html_dir, "supplementary_table2_primary_outcomes_glp1_anchored.html"))
 
 # =============================================================================
 # 8. PRINT TO CONSOLE
 # =============================================================================
 cat("\n================================================================\n")
-cat(" TABLE 3a — GLP-1 ANCHORED OUTCOMES (MARKDOWN)\n")
+cat(" SUPPLEMENTARY TABLE 2 — GLP-1 ANCHORED OUTCOMES (MARKDOWN)\n")
 cat("================================================================\n\n")
-cat(md_table3a, "\n\n")
+cat(md_supp_table2, "\n\n")
 
 cat("================================================================\n")
 cat(" FILES CREATED\n")
 cat("================================================================\n")
 cat("MD Files:\n")
-cat("  ", file.path(md_dir, "table3a_primary_outcomes_glp1_anchored.md"), "\n")
+cat("  ", file.path(md_dir, "supplementary_table2_primary_outcomes_glp1_anchored.md"), "\n")
 cat("HTML Files:\n")
-cat("  ", file.path(html_dir, "table3a_primary_outcomes_glp1_anchored.html"), "\n")
+cat("  ", file.path(html_dir, "supplementary_table2_primary_outcomes_glp1_anchored.html"), "\n")

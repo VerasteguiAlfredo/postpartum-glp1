@@ -1,5 +1,5 @@
 # =============================================================================
-# postpartum-glp1: Table 3 — Primary Outcomes (Change in Weight, SBP, DBP)
+# postpartum-glp1: Supplementary Table 1 — Primary Outcomes (Change in Weight, SBP, DBP)
 # -----------------------------------------------------------------------------
 # Produces:
 #   - Overall + by GLP-1 timing stratum
@@ -9,8 +9,8 @@
 #   - All outcomes evaluated at 3, 6, and 12 months postpartum
 #
 # Outputs:
-#   /Results/Analysis/Tables/MD Files/    table3_*.md   (printed to console too)
-#   /Results/Analysis/Tables/HTML Files/  table3_*.html (NEJM/JAMA minimalist)
+#   /Results/Analysis/Tables/MD Files/    supplementary_table1_*.md   (printed to console too)
+#   /Results/Analysis/Tables/HTML Files/  supplementary_table1_*.html (NEJM/JAMA minimalist)
 #
 # Source AFTER build_analysis_dataset_v3.R
 # =============================================================================
@@ -32,8 +32,8 @@ proj_root <- if (sys_name == "Darwin") {
 }
 
 data_dir <- file.path(proj_root, "data_processed")
-md_dir   <- file.path(proj_root, "Results", "Analysis", "Tables", "MD Files")
-html_dir <- file.path(proj_root, "Results", "Analysis", "Tables", "HTML Files")
+md_dir   <- file.path(proj_root, "Results", "Analysis", "Supplementary Material", "MD Files")
+html_dir <- file.path(proj_root, "Results", "Analysis", "Supplementary Material", "HTML Files")
 for (d in c(md_dir, html_dir)) {
   if (!dir.exists(d)) dir.create(d, recursive = TRUE)
 }
@@ -204,7 +204,7 @@ build_event_row <- function(df, outcome_label, event_col) {
 }
 
 # =============================================================================
-# 4. ASSEMBLE TABLE 3
+# 4. ASSEMBLE SUPPLEMENTARY TABLE 1
 # =============================================================================
 
 table3 <- bind_rows(
@@ -264,12 +264,12 @@ table3 <- table3 %>%
 # =============================================================================
 # 5. RENDER MD
 # =============================================================================
-md_caption <- "Table 3. Primary outcomes — change in weight, SBP, DBP from baseline at 3, 6, and 12 months postpartum"
+md_caption <- "Supplementary Table 1. Primary outcomes — change in weight, SBP, DBP from baseline at 3, 6, and 12 months postpartum"
 
 md_table3 <- knitr::kable(table3, format = "pipe", caption = md_caption) %>%
   paste(collapse = "\n")
 
-writeLines(md_table3, file.path(md_dir, "table3_primary_outcomes.md"))
+writeLines(md_table3, file.path(md_dir, "supplementary_table1_primary_outcomes.md"))
 
 # =============================================================================
 # 6. RENDER HTML — NEJM/JAMA minimalist
@@ -341,7 +341,7 @@ header_row_indices <- which(table3$Outcome %in%
 
 html_table3 <- table3 %>%
   gt() %>%
-  tab_header(title = md("**Table 3.** Primary outcomes — change in weight, SBP, DBP from baseline at 3, 6, and 12 months postpartum")) %>%
+  tab_header(title = md("**Supplementary Table 1.** Primary outcomes — change in weight, SBP, DBP from baseline at 3, 6, and 12 months postpartum")) %>%
   cols_label(
     Outcome     = "Outcome",
     Overall     = "Overall",
@@ -365,18 +365,18 @@ html_table3 <- table3 %>%
   ))) %>%
   tab_source_note(source_note = md(paste(
     "*Note: Outcomes anchored to DELIVERY DATE. Late starters (> 6mo) have a median of only ~3 months on drug at the 12mo postpartum window,",
-    "which substantially underestimates their true drug response. See Table 3a for GLP-1-anchored sensitivity analysis at matched exposure times.*",
+    "which substantially underestimates their true drug response. See Supplementary Table 1a for GLP-1-anchored sensitivity analysis at matched exposure times.*",
     sep = " "
   ))) %>%
   nejm_style()
 
-gt::gtsave(html_table3, file.path(html_dir, "table3_primary_outcomes.html"))
+gt::gtsave(html_table3, file.path(html_dir, "supplementary_table1_primary_outcomes.html"))
 
 # =============================================================================
 # 7. PRINT TO CONSOLE
 # =============================================================================
 cat("\n================================================================\n")
-cat(" TABLE 3 — PRIMARY OUTCOMES (MARKDOWN)\n")
+cat(" SUPPLEMENTARY TABLE 1 — PRIMARY OUTCOMES (MARKDOWN)\n")
 cat("================================================================\n\n")
 cat(md_table3, "\n\n")
 
@@ -384,6 +384,6 @@ cat("================================================================\n")
 cat(" FILES CREATED\n")
 cat("================================================================\n")
 cat("MD Files:\n")
-cat("  ", file.path(md_dir, "table3_primary_outcomes.md"), "\n")
+cat("  ", file.path(md_dir, "supplementary_table1_primary_outcomes.md"), "\n")
 cat("HTML Files:\n")
-cat("  ", file.path(html_dir, "table3_primary_outcomes.html"), "\n")
+cat("  ", file.path(html_dir, "supplementary_table1_primary_outcomes.html"), "\n")
