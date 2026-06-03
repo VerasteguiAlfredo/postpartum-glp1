@@ -3,7 +3,7 @@ Table: Table 1. Baseline demographics and clinical characteristics, overall and 
 |**Baseline Characteristic**              |**Overall**, N = 704 |**Early (< 6 months)**, N = 297 |**Late (>= 6 months)**, N = 407 |**p-value** |
 |:----------------------------------------|:--------------------|:-------------------------------|:-------------------------------|:-----------|
 |Age at delivery, years                   |33.0 (29.0, 36.0)    |33.0 (29.0, 36.0)               |32.0 (29.0, 36.0)               |0.293       |
-|Race                                     |NA                   |NA                              |NA                              |0.271       |
+|Race                                     |NA                   |NA                              |NA                              |0.285       |
 |American Indian/Alaska Native            |9 (1.3%)             |7 (2.4%)                        |2 (0.5%)                        |NA          |
 |Asian                                    |20 (2.8%)            |6 (2.0%)                        |14 (3.4%)                       |NA          |
 |Black or African American                |48 (6.8%)            |21 (7.1%)                       |27 (6.6%)                       |NA          |
@@ -11,7 +11,7 @@ Table: Table 1. Baseline demographics and clinical characteristics, overall and 
 |Other                                    |5 (0.7%)             |3 (1.0%)                        |2 (0.5%)                        |NA          |
 |Unknown/Declined                         |10 (1.4%)            |4 (1.3%)                        |6 (1.5%)                        |NA          |
 |White                                    |611 (87%)            |256 (86%)                       |355 (87%)                       |NA          |
-|Ethnicity                                |NA                   |NA                              |NA                              |0.781       |
+|Ethnicity                                |NA                   |NA                              |NA                              |0.766       |
 |Hispanic or Latino                       |56 (8.0%)            |25 (8.4%)                       |31 (7.6%)                       |NA          |
 |Not Hispanic or Latino                   |641 (91%)            |270 (91%)                       |371 (91%)                       |NA          |
 |Unknown/Declined                         |7 (1.0%)             |2 (0.7%)                        |5 (1.2%)                        |NA          |
@@ -20,7 +20,7 @@ Table: Table 1. Baseline demographics and clinical characteristics, overall and 
 |Missing                                  |52                   |14                              |38                              |NA          |
 |Baseline BMI, kg/m^2                     |39.6 (35.2, 44.8)    |39.8 (35.3, 45.1)               |39.4 (35.1, 44.6)               |0.561       |
 |Missing                                  |52                   |14                              |38                              |NA          |
-|BMI category                             |NA                   |NA                              |NA                              |0.810       |
+|BMI category                             |NA                   |NA                              |NA                              |0.811       |
 |Normal/Underweight (<25)                 |2 (0.3%)             |0 (0%)                          |2 (0.5%)                        |NA          |
 |Overweight (25-29.9)                     |27 (4.1%)            |10 (3.5%)                       |17 (4.6%)                       |NA          |
 |Obesity Class I (30-34.9)                |130 (20%)            |58 (20%)                        |72 (20%)                        |NA          |
@@ -33,7 +33,7 @@ Table: Table 1. Baseline demographics and clinical characteristics, overall and 
 |Missing                                  |60                   |14                              |46                              |NA          |
 |Baseline DBP, mmHg                       |79.0 (73.5, 84.0)    |79.0 (73.0, 84.0)               |79.0 (74.0, 84.0)               |0.487       |
 |Missing                                  |60                   |14                              |46                              |NA          |
-|BP stage (ACC/AHA 2017)                  |NA                   |NA                              |NA                              |0.635       |
+|BP stage (ACC/AHA 2017)                  |NA                   |NA                              |NA                              |0.626       |
 |Normal/Elevated                          |310 (48%)            |137 (48%)                       |173 (48%)                       |NA          |
 |Stage 1                                  |262 (41%)            |111 (39%)                       |151 (42%)                       |NA          |
 |Stage 2                                  |72 (11%)             |35 (12%)                        |37 (10%)                        |NA          |
@@ -48,11 +48,11 @@ Table: Table 1. Baseline demographics and clinical characteristics, overall and 
 |Missing                                  |17                   |3                               |14                              |NA          |
 |Gestational age at delivery, weeks       |38.0 (37.0, 39.0)    |38.0 (37.0, 39.0)               |38.0 (37.0, 39.0)               |0.048       |
 |Missing                                  |8                    |3                               |5                               |NA          |
-|Delivery mode                            |NA                   |NA                              |NA                              |0.242       |
+|Delivery mode                            |NA                   |NA                              |NA                              |0.235       |
 |Cesarean                                 |357 (51%)            |155 (52%)                       |202 (50%)                       |NA          |
 |Other/Unknown                            |19 (2.7%)            |11 (3.7%)                       |8 (2.0%)                        |NA          |
 |Vaginal                                  |328 (47%)            |131 (44%)                       |197 (48%)                       |NA          |
-|First postpartum GLP-1 drug              |NA                   |NA                              |NA                              |0.252       |
+|First postpartum GLP-1 drug              |NA                   |NA                              |NA                              |0.240       |
 |dulaglutide                              |21 (3.0%)            |12 (4.0%)                       |9 (2.2%)                        |NA          |
 |exenatide                                |2 (0.3%)             |2 (0.7%)                        |0 (0%)                          |NA          |
 |liraglutide                              |56 (8.0%)            |27 (9.1%)                       |29 (7.1%)                       |NA          |
@@ -67,13 +67,13 @@ Table: Table 1. Baseline demographics and clinical characteristics, overall and 
 |≥ 12 months                              |93 (13%)             |61 (21%)                        |32 (7.9%)                       |NA          |
 |Unknown                                  |0 (0%)               |0 (0%)                          |0 (0%)                          |NA          |
 |Days from delivery to GLP-1 start        |207.0 (123.0, 282.5) |111.0 (73.0, 147.0)             |270.0 (230.0, 313.0)            |<0.001      |
-|Smoking status (pre-pregnancy preferred) |NA                   |NA                              |NA                              |0.023       |
+|Smoking status (pre-pregnancy preferred) |NA                   |NA                              |NA                              |0.017       |
 |Never                                    |625 (89%)            |254 (86%)                       |371 (91%)                       |NA          |
 |Former                                   |0 (0%)               |0 (0%)                          |0 (0%)                          |NA          |
 |Current                                  |78 (11%)             |43 (14%)                        |35 (8.6%)                       |NA          |
 |Unknown                                  |0 (0%)               |0 (0%)                          |0 (0%)                          |NA          |
 |Missing                                  |1                    |0                               |1                               |NA          |
-|Alcohol use (pre-pregnancy preferred)    |NA                   |NA                              |NA                              |0.410       |
+|Alcohol use (pre-pregnancy preferred)    |NA                   |NA                              |NA                              |0.407       |
 |Never                                    |184 (26%)            |70 (24%)                        |114 (28%)                       |NA          |
 |Former                                   |0 (0%)               |0 (0%)                          |0 (0%)                          |NA          |
 |Current                                  |507 (73%)            |223 (75%)                       |284 (71%)                       |NA          |
@@ -126,9 +126,9 @@ Table: Table 1. Baseline demographics and clinical characteristics, overall and 
 |Missing                                  |248                  |88                              |160                             |NA          |
 |AST, U/L                                 |21.0 (17.0, 27.0)    |21.0 (17.0, 28.0)               |20.0 (17.0, 25.0)               |0.074       |
 |Missing                                  |164                  |52                              |112                             |NA          |
-|Echo LVEF, %                             |61.0 (58.0, 65.0)    |62.5 (59.0, 65.0)               |61.0 (58.0, 62.0)               |0.262       |
+|Echo LVEF, %                             |61.0 (58.0, 65.0)    |62.5 (59.0, 65.0)               |61.0 (58.0, 62.0)               |0.261       |
 |Missing                                  |657                  |275                             |382                             |NA          |
-|BSA, m^2                                 |2.2 (2.0, 2.3)       |2.1 (2.0, 2.3)                  |2.2 (2.1, 2.3)                  |0.788       |
+|BSA, m^2                                 |2.2 (2.0, 2.3)       |2.1 (2.0, 2.3)                  |2.2 (2.1, 2.3)                  |0.790       |
 |Missing                                  |657                  |275                             |382                             |NA          |
 |ECG heart rate, bpm                      |86.0 (73.0, 99.0)    |87.0 (76.0, 102.0)              |86.0 (72.0, 98.0)               |0.532       |
 |Missing                                  |518                  |218                             |300                             |NA          |
