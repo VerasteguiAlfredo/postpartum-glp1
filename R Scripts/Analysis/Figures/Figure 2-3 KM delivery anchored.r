@@ -43,6 +43,7 @@ N_AT_RISK_MIN      <- 10    # truncate curve where either group drops below this
 
 N_AT_RISK_MIN      <- 10    # truncate curve where either group drops below this
 CHI2_COL           <- paste0("Log-rank ", "\u03c7", "\u00b2")   # "Log-rank χ²"
+LOGRANK6_COL       <- "Log-rank p (0-6 mo)"
 
 # BP-specific anchoring rules (per PI)
 BP_BASELINE_WINDOW <- 2     # +/- days around delivery for single baseline BP
@@ -62,6 +63,11 @@ fig_dir  <- file.path(proj_root, "Results", "Analysis", "Figures")
 md_dir   <- file.path(proj_root, "Results", "Analysis", "Tables", "MD Files")
 if (!dir.exists(fig_dir)) dir.create(fig_dir, recursive = TRUE)
 if (!dir.exists(md_dir))  dir.create(md_dir,  recursive = TRUE)
+
+
+# After your existing fig_dir definition, add:
+fig_panels_dir <- file.path(fig_dir, "Figure 2-3 Individual Panels")
+if (!dir.exists(fig_panels_dir)) dir.create(fig_panels_dir, recursive = TRUE)
 
 # =============================================================================
 # MARKDOWN ACCUMULATOR
@@ -384,41 +390,36 @@ Q <- build_all_panels(">=")       # PDF set
 # =============================================================================
 # DEVICE-AWARE SAVERS
 # =============================================================================
-png_type <- tryCatch(
-  if (isTRUE(capabilities("cairo")))  "cairo"
-  else if (isTRUE(capabilities("aqua"))) "quartz"
-  else "Xlib",
-  error = function(e) "cairo"
-)
+png_type <- if (isTRUE(capabilities("aqua"))) "quartz" else "cairo"
 
-save_panel_png <- function(p, fname, w = 6.5, h = 6.4, dpi = 600) {
-  png(file.path(fig_dir, fname), width = w, height = h, units = "in",
+save_panel_png <- function(p, fpath, w = 6.5, h = 6.4, dpi = 600) {
+  png(fpath, width = w, height = h, units = "in",
       res = dpi, type = png_type, bg = "white")
   print(p, newpage = FALSE)
   dev.off()
-  cat("  Saved:", fname, "\n")
+  cat("  Saved:", basename(fpath), "\n")
 }
 
-save_panel_pdf <- function(p, fname, w = 6.5, h = 6.4) {
-  pdf(file.path(fig_dir, fname), width = w, height = h, bg = "white")
+save_panel_pdf <- function(p, fpath, w = 6.5, h = 6.4) {
+  pdf(fpath, width = w, height = h, bg = "white")
   print(p, newpage = FALSE)
   dev.off()
-  cat("  Saved:", fname, "\n")
+  cat("  Saved:", basename(fpath), "\n")
 }
 
-save_grob_png <- function(g, fname, w, h, dpi = 600) {
-  png(file.path(fig_dir, fname), width = w, height = h, units = "in",
+save_grob_png <- function(g, fpath, w, h, dpi = 600) {
+  png(fpath, width = w, height = h, units = "in",
       res = dpi, type = png_type, bg = "white")
   grid::grid.draw(g)
   dev.off()
-  cat("  Saved:", fname, "\n")
+  cat("  Saved:", basename(fpath), "\n")
 }
 
-save_grob_pdf <- function(g, fname, w, h) {
-  pdf(file.path(fig_dir, fname), width = w, height = h, bg = "white")
+save_grob_pdf <- function(g, fpath, w, h) {
+  pdf(fpath, width = w, height = h, bg = "white")
   grid::grid.draw(g)
   dev.off()
-  cat("  Saved:", fname, "\n")
+  cat("  Saved:", basename(fpath), "\n")
 }
 
 # =============================================================================
@@ -427,14 +428,14 @@ save_grob_pdf <- function(g, fname, w, h) {
 cat("\nSaving individual panels...\n")
 
 # Weight panels (A–C)
-save_panel_png(P$A, "Figure2_A_wt10pct.png")
-save_panel_png(P$B, "Figure2_B_wt20pct.png")
-save_panel_png(P$C, "Figure2_C_prepreg.png")
+save_panel_png(P$A, file.path(fig_panels_dir, "Figure2_A_wt10pct.png"))
+save_panel_png(P$B, file.path(fig_panels_dir, "Figure2_B_wt20pct.png"))
+save_panel_png(P$C, file.path(fig_panels_dir, "Figure2_C_prepreg.png"))
 
 # BP panels (D–F)
-save_panel_png(P$D, "Figure3_D_sbp5.png")
-save_panel_png(P$E, "Figure3_E_sbp10.png")
-save_panel_png(P$`F`, "Figure3_F_dbp5.png")
+save_panel_png(P$D, file.path(fig_panels_dir, "Figure3_D_sbp5.png"))
+save_panel_png(P$E, file.path(fig_panels_dir, "Figure3_E_sbp10.png"))
+save_panel_png(P$`F`, file.path(fig_panels_dir, "Figure3_F_dbp5.png"))
 
 # =============================================================================
 # COMPOSITE FIGURES
@@ -444,37 +445,37 @@ cat("\nSaving composite figures...\n")
 # --- Figure 2: Weight outcomes (A–C) -----------------------------------------
 title_fig2 <- paste0(
   "Figure 2. Delivery-anchored time-to-weight-loss outcomes ",
-  "(Late group untreated months 0\u20136)"
+  "(Late group untreated months 0-6)"
 )
 fig2_png <- arrange_ggsurvplots(
-  list(P$A, P$B, P$C), ncol = 3, nrow = 1, print = FALSE, title = title_fig2
+  list(Q$A, Q$B, Q$C), ncol = 3, nrow = 1, print = FALSE, title = title_fig2
 )
 fig2_pdf <- arrange_ggsurvplots(
   list(Q$A, Q$B, Q$C), ncol = 3, nrow = 1, print = FALSE, title = title_fig2
 )
-save_grob_png(fig2_png, "Figure2_wt_composite.png", w = 19, h = 7.0)
-save_grob_pdf(fig2_pdf, "Figure2_wt_composite.pdf", w = 19, h = 7.0)
+save_grob_png(fig2_png, file.path(fig_dir, "Figure2_KM_weight_outcomes.png"), w = 19, h = 7.0)
+save_grob_pdf(fig2_pdf, file.path(fig_dir, "Figure2_KM_weight_outcomes.pdf"), w = 19, h = 7.0)
 
 # --- Figure 3: BP outcomes (D–F), HDP subgroup --------------------------------
 title_fig3 <- paste0(
   "Figure 3. Delivery-anchored time-to-BP-improvement, HDP subgroup ",
-  "(Late group untreated months 0\u20136)"
+  "(Late group untreated months 0-6)"
 )
 fig3_png <- arrange_ggsurvplots(
-  list(P$D, P$E, P$`F`), ncol = 3, nrow = 1, print = FALSE, title = title_fig3
+  list(Q$D, Q$E, Q$`F`), ncol = 3, nrow = 1, print = FALSE, title = title_fig3
 )
 fig3_pdf <- arrange_ggsurvplots(
   list(Q$D, Q$E, Q$`F`), ncol = 3, nrow = 1, print = FALSE, title = title_fig3
 )
-save_grob_png(fig3_png, "Figure3_bp_composite.png", w = 19, h = 7.0)
-save_grob_pdf(fig3_pdf, "Figure3_bp_composite.pdf", w = 19, h = 7.0)
+save_grob_png(fig3_png, file.path(fig_dir, "Figure3_KM_BP_outcomes.png"), w = 19, h = 7.0)
+save_grob_pdf(fig3_pdf, file.path(fig_dir, "Figure3_KM_BP_outcomes.pdf"), w = 19, h = 7.0)
 
 # --- Combined 2-row figure (A–C top | D–F bottom) ----------------------------
 library(gridExtra)
 
 title_combined <- paste0(
   "Delivery-anchored Kaplan-Meier curves: ",
-  "weight outcomes (A\u2013C, top) and BP outcomes (D\u2013F, bottom, HDP subgroup)"
+  "weight outcomes (A-C, top) and BP outcomes (D-F, bottom, HDP subgroup)"
 )
 
 make_combined_grob <- function(panels, title_txt) {
@@ -491,11 +492,10 @@ make_combined_grob <- function(panels, title_txt) {
   )
 }
 
-fig_cmb_png <- make_combined_grob(list(P$A, P$B, P$C, P$D, P$E, P$`F`), title_combined)
+fig_cmb_png <- make_combined_grob(list(Q$A, Q$B, Q$C, Q$D, Q$E, Q$`F`), title_combined)
 fig_cmb_pdf <- make_combined_grob(list(Q$A, Q$B, Q$C, Q$D, Q$E, Q$`F`), title_combined)
-
-save_grob_png(fig_cmb_png, "Figure_combined_km.png", w = 19, h = 14.5)
-save_grob_pdf(fig_cmb_pdf, "Figure_combined_km.pdf", w = 19, h = 14.5)
+save_grob_png(fig_cmb_png, file.path(fig_dir, "Figure2-3_KM_combined.png"), w = 19, h = 14.5)
+save_grob_pdf(fig_cmb_pdf, file.path(fig_dir, "Figure2-3_KM_combined.pdf"), w = 19, h = 14.5)
 
 # =============================================================================
 # SUMMARY TABLES
