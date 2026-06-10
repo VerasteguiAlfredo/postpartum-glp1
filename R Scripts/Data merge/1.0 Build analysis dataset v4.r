@@ -1520,6 +1520,23 @@ analysis_df <- cohort_clean %>%
     bmi_baseline_pp       = weight_kg_baseline_pp       / ((height_cm / 100) ^ 2),
     bmi_baseline_sens     = weight_kg_baseline_sens     / ((height_cm / 100) ^ 2),
     bmi_baseline_combined = weight_kg_baseline_combined / ((height_cm / 100) ^ 2),
+
+    # --- BMI-derived obesity (current physiology, not lifetime ICD-flagged) ---
+# Reflects the patient's BMI at the delivery anchor, recommended over ckm_obesity
+# (lifetime ICD) for the delivery-anchored Cox analyses.
+obesity_bmi_baseline   = bmi_baseline_combined >= 30,
+obesity_class_baseline = case_when(
+  is.na(bmi_baseline_combined) ~ NA_character_,
+  bmi_baseline_combined < 30   ~ "Non-obese (BMI < 30)",
+  bmi_baseline_combined < 35   ~ "Class I (BMI 30-34.9)",
+  bmi_baseline_combined < 40   ~ "Class II (BMI 35-39.9)",
+  TRUE                         ~ "Class III (BMI \u2265 40)"
+),
+obesity_class_baseline = factor(obesity_class_baseline,
+  levels = c("Non-obese (BMI < 30)", "Class I (BMI 30-34.9)",
+             "Class II (BMI 35-39.9)", "Class III (BMI \u2265 40)")),
+
+
     # Deltas using COMBINED baseline (primary → pp fallback). Used for
     # primary analyses and Table 1. Keep _primary versions for reference.
     delta_sbp_pp6m_primary   = sbp_baseline_primary        - sbp_m6_pp,
@@ -1559,6 +1576,12 @@ readr::write_csv(analysis_df, file.path(out_dir, "analysis_df.csv"))
 readr::write_csv(vitals_long, file.path(out_dir, "vitals_long.csv"))
 readr::write_csv(labs_long,   file.path(out_dir, "labs_long.csv"))
 readr::write_csv(events_df,   file.path(out_dir, "events_df.csv"))
+
+cat("\n--- Obesity definition comparison ---\n")
+cat("ICD-flagged (ckm_obesity):  ", sum(analysis_df$ckm_obesity, na.rm = TRUE), "\n")
+cat("BMI-derived (BMI >= 30):    ", sum(analysis_df$obesity_bmi_baseline, na.rm = TRUE), "\n")
+print(table(analysis_df$ckm_obesity, analysis_df$obesity_bmi_baseline,
+            dnn = c("ICD-flagged", "BMI >= 30"), useNA = "ifany"))
 
 cat("\n========================================\n")
 cat("FINAL ANALYSIS DATASET (v3 — delivery-anchored)\n")

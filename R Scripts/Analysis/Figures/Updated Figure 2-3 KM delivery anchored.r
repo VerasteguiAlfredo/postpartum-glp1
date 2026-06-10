@@ -90,6 +90,7 @@ vitals_long <- readRDS(file.path(data_dir, "vitals_long.rds"))
 cat("Loaded analysis_df (", nrow(analysis_df), " rows) and vitals_long (",
     nrow(vitals_long), " rows)\n", sep = "")
 
+# HDP subgroup definition (consistent with main analysis)
 analysis_df <- analysis_df %>%
   mutate(
     bp_stage2_baseline =
@@ -140,6 +141,19 @@ prepreg_baseline_df <- analysis_df %>%
 wt_base  <- earliest_pp_baseline("weight_kg")
 sbp_base <- delivery_date_bp_baseline("sbp")
 dbp_base <- delivery_date_bp_baseline("dbp")
+
+# --- PI revision (Adedinsewo): restrict BP cohort to HDP patients who were
+#     actually hypertensive at delivery (BP >= 140/90). HDP diagnosis alone
+#     includes patients normotensive at delivery, who have no room to improve
+#     and drive the early collapse / inflated event rate.
+hdp_elevated_ids <- sbp_base %>%
+  left_join(dbp_base %>% transmute(CURR_CLINIC, delivery_dbp = baseline),
+            by = "CURR_CLINIC") %>%
+  filter(CURR_CLINIC %in% hdp_ids,
+         baseline >= 140 | (!is.na(delivery_dbp) & delivery_dbp >= 90)) %>%
+  pull(CURR_CLINIC)
+cat("HDP (any diagnosis):                       ", length(hdp_ids), "\n")
+cat("HDP + delivery BP >= 140/90 (BP analysis): ", length(hdp_elevated_ids), "\n\n")
 
 # Baseline-timing diagnostic tables
 bl_report <- wt_base %>%
@@ -242,21 +256,21 @@ cfg <- list(
            label = "C: Return to pre-pregnancy weight",
            ids   = full_ids,
            es    = 0),
-  D = list(vital = "sbp",       base = sbp_base,
-           fn    = function(v, b) (b - v) >= 5,
+  D = list(vital = "sbp", base = sbp_base,
+           fn = function(v, b) (b - v) >= 5,
            label = "D: \u22655 mmHg SBP decline",
-           ids   = hdp_ids,
-           es    = BP_EVENT_START_DAY),
-  E = list(vital = "sbp",       base = sbp_base,
-           fn    = function(v, b) (b - v) >= 10,
+           ids = hdp_elevated_ids,            # was hdp_ids
+           es = BP_EVENT_START_DAY),
+  E = list(vital = "sbp", base = sbp_base,
+           fn = function(v, b) (b - v) >= 10,
            label = "E: \u226510 mmHg SBP decline",
-           ids   = hdp_ids,
-           es    = BP_EVENT_START_DAY),
-  F = list(vital = "dbp",       base = dbp_base,
-           fn    = function(v, b) (b - v) >= 5,
+           ids = hdp_elevated_ids,            # was hdp_ids
+           es = BP_EVENT_START_DAY),
+  F = list(vital = "dbp", base = dbp_base,
+           fn = function(v, b) (b - v) >= 5,
            label = "F: \u22655 mmHg DBP decline",
-           ids   = hdp_ids,
-           es    = BP_EVENT_START_DAY)
+           ids = hdp_elevated_ids,            # was hdp_ids
+           es = BP_EVENT_START_DAY)
 )
 
 cat("Building delivery-anchored TTE datasets...\n")
@@ -613,7 +627,7 @@ emit("Full 0\u201312 month log-rank test (note: mixes untreated + treated period
 # JOURNAL-STYLE FIGURE CAPTION
 # =============================================================================
 n_full <- length(full_ids)
-n_hdp  <- length(hdp_ids)
+n_hdp  <- length(hdp_elevated_ids)
 
 caption <- paste0(
   "\n",
@@ -678,276 +692,4 @@ cat("    Figure2_wt_composite.png / .pdf   (panels A\u2013C)\n")
 cat("    Figure3_bp_composite.png / .pdf   (panels D\u2013F)\n")
 cat("    Figure_combined_km.png / .pdf     (A\u2013C top row, D\u2013F bottom row)\n\n")
 cat("Markdown results table:\n  ", md_path, "\n")
-cat(strrep("=", 80), "\n")
-
-
-
-
-# =============================================================================
-# DR. DEMI CHECK: Restrict BP analysis to HDP + BP >=140/90 at delivery
-# -----------------------------------------------------------------------------
-# Purpose:
-#   The current BP KM cohort uses the broader HDP subgroup.
-#   This block checks the smaller subgroup requested:
-#     1) HDP during pregnancy
-#     2) Delivery/peripartum BP >=140/90 mmHg
-#
-# This block:
-#   - Counts the restricted subgroup
-#   - Rebuilds BP time-to-event datasets for this subgroup only
-#   - Reports early vs late sample sizes
-#   - Runs log-rank tests for BP outcomes
-#   - Reports 3- and 6-month cumulative incidence
-# =============================================================================
-
-cat("\n")
-cat(strrep("=", 80), "\n")
-cat(" DR. DEMI CHECK: HDP + DELIVERY BP >=140/90 SUBGROUP\n")
-cat(strrep("=", 80), "\n\n")
-
-# -----------------------------------------------------------------------------
-# 1. Define restricted subgroup
-# -----------------------------------------------------------------------------
-
-analysis_df_check <- analysis_df %>%
-  mutate(
-    bp_140_90_delivery = case_when(
-      !is.na(sbp_baseline_combined) & sbp_baseline_combined >= 140 ~ TRUE,
-      !is.na(dbp_baseline_combined) & dbp_baseline_combined >= 90  ~ TRUE,
-      is.na(sbp_baseline_combined) & is.na(dbp_baseline_combined)  ~ NA,
-      TRUE ~ FALSE
-    ),
-    hdp_plus_bp140_delivery = preg_htn_any == TRUE & bp_140_90_delivery == TRUE
-  )
-
-bp140_delivery_ids <- analysis_df_check %>%
-  filter(hdp_plus_bp140_delivery == TRUE) %>%
-  pull(CURR_CLINIC)
-
-cat("Restricted subgroup definition:\n")
-cat("  HDP/pregnancy hypertension == TRUE AND delivery BP >=140/90 mmHg\n\n")
-
-subgroup_counts <- analysis_df_check %>%
-  summarise(
-    total_cohort_n = n(),
-    hdp_any_n = sum(preg_htn_any == TRUE, na.rm = TRUE),
-    delivery_bp_140_90_n = sum(bp_140_90_delivery == TRUE, na.rm = TRUE),
-    hdp_plus_delivery_bp_140_90_n = sum(hdp_plus_bp140_delivery == TRUE, na.rm = TRUE),
-    missing_delivery_bp_n = sum(is.na(bp_140_90_delivery))
-  )
-
-print(subgroup_counts)
-
-cat("\nRestricted subgroup N:", length(bp140_delivery_ids), "\n\n")
-
-# -----------------------------------------------------------------------------
-# 2. Early vs late distribution in restricted subgroup
-# -----------------------------------------------------------------------------
-
-timing_counts <- analysis_df_check %>%
-  filter(CURR_CLINIC %in% bp140_delivery_ids) %>%
-  count(glp1_timing_2cat, name = "n") %>%
-  mutate(percent = sprintf("%.1f%%", 100 * n / sum(n)))
-
-cat("Early vs late distribution in restricted subgroup:\n")
-print(timing_counts)
-
-# -----------------------------------------------------------------------------
-# 3. Rebuild BP TTE datasets using the restricted subgroup only
-# -----------------------------------------------------------------------------
-
-tte_bp140 <- list(
-  D = build_tte_delivery(
-    vital_name      = "sbp",
-    baseline_df     = sbp_base,
-    event_fn        = function(v, b) (b - v) >= 5,
-    cohort_ids      = bp140_delivery_ids,
-    event_start_day = BP_EVENT_START_DAY
-  ),
-  E = build_tte_delivery(
-    vital_name      = "sbp",
-    baseline_df     = sbp_base,
-    event_fn        = function(v, b) (b - v) >= 10,
-    cohort_ids      = bp140_delivery_ids,
-    event_start_day = BP_EVENT_START_DAY
-  ),
-  F = build_tte_delivery(
-    vital_name      = "dbp",
-    baseline_df     = dbp_base,
-    event_fn        = function(v, b) (b - v) >= 5,
-    cohort_ids      = bp140_delivery_ids,
-    event_start_day = BP_EVENT_START_DAY
-  )
-)
-
-bp_labels <- c(
-  D = ">=5 mmHg SBP decline",
-  E = ">=10 mmHg SBP decline",
-  F = ">=5 mmHg DBP decline"
-)
-
-# -----------------------------------------------------------------------------
-# 4. Quick log-rank summary
-# -----------------------------------------------------------------------------
-
-bp140_logrank_summary <- lapply(names(tte_bp140), function(k) {
-  df <- tte_bp140[[k]]
-
-  if (nrow(df) == 0 || length(unique(df$glp1_timing_2cat)) < 2) {
-    return(data.frame(
-      outcome = bp_labels[[k]],
-      n = nrow(df),
-      events = sum(df$event, na.rm = TRUE),
-      early_n = sum(df$glp1_timing_2cat == "Early (< 6 months)", na.rm = TRUE),
-      late_n = sum(df$glp1_timing_2cat == "Late (>= 6 months)", na.rm = TRUE),
-      logrank_chisq = NA_real_,
-      logrank_p = NA_character_
-    ))
-  }
-
-  lr <- survdiff(Surv(tte_months, event) ~ glp1_timing_2cat, data = df)
-  p  <- pchisq(lr$chisq, df = length(lr$n) - 1, lower.tail = FALSE)
-
-  data.frame(
-    outcome = bp_labels[[k]],
-    n = nrow(df),
-    events = sum(df$event, na.rm = TRUE),
-    early_n = sum(df$glp1_timing_2cat == "Early (< 6 months)", na.rm = TRUE),
-    late_n = sum(df$glp1_timing_2cat == "Late (>= 6 months)", na.rm = TRUE),
-    logrank_chisq = round(lr$chisq, 2),
-    logrank_p = ifelse(p < 0.001, "<0.001", sprintf("%.3f", p))
-  )
-}) %>%
-  bind_rows()
-
-cat("\nLog-rank summary: restricted HDP + delivery BP >=140/90 subgroup\n")
-print(bp140_logrank_summary)
-
-# -----------------------------------------------------------------------------
-# 5. Cox models: early vs late, late as reference
-# -----------------------------------------------------------------------------
-
-bp140_cox_summary <- lapply(names(tte_bp140), function(k) {
-  df <- tte_bp140[[k]] %>%
-    mutate(
-      glp1_timing_2cat = relevel(
-        factor(glp1_timing_2cat),
-        ref = "Late (>= 6 months)"
-      )
-    )
-
-  if (nrow(df) == 0 || length(unique(df$glp1_timing_2cat)) < 2) {
-    return(data.frame(
-      outcome = bp_labels[[k]],
-      HR = NA_real_,
-      CI_low = NA_real_,
-      CI_high = NA_real_,
-      p_value = NA_real_,
-      HR_95CI = NA_character_
-    ))
-  }
-
-  fit <- coxph(Surv(tte_months, event) ~ glp1_timing_2cat, data = df)
-  sm  <- summary(fit)
-
-  hr      <- sm$coefficients[1, "exp(coef)"]
-  p_value <- sm$coefficients[1, "Pr(>|z|)"]
-  ci_low  <- sm$conf.int[1, "lower .95"]
-  ci_high <- sm$conf.int[1, "upper .95"]
-
-  data.frame(
-    outcome = bp_labels[[k]],
-    HR = round(hr, 2),
-    CI_low = round(ci_low, 2),
-    CI_high = round(ci_high, 2),
-    p_value = p_value,
-    HR_95CI = paste0(
-      sprintf("%.2f", hr),
-      " (",
-      sprintf("%.2f", ci_low),
-      "-",
-      sprintf("%.2f", ci_high),
-      "), p=",
-      ifelse(p_value < 0.001, "<0.001", sprintf("%.3f", p_value))
-    )
-  )
-}) %>%
-  bind_rows()
-
-cat("\nUnadjusted Cox summary: Early vs Late, Late as reference\n")
-print(bp140_cox_summary)
-
-# -----------------------------------------------------------------------------
-# 6. Landmark cumulative incidence at 3 and 6 months
-# -----------------------------------------------------------------------------
-
-get_landmark_ci <- function(df, outcome_label, times = c(3, 6)) {
-  if (nrow(df) == 0 || length(unique(df$glp1_timing_2cat)) < 2) {
-    return(data.frame())
-  }
-
-  fit <- survfit(Surv(tte_months, event) ~ glp1_timing_2cat, data = df)
-  s   <- summary(fit, times = times)
-
-  data.frame(
-    outcome = outcome_label,
-    group = sub("glp1_timing_2cat=", "", as.character(s$strata)),
-    month = s$time,
-    cumulative_incidence_percent = round((1 - s$surv) * 100, 1),
-    ci_low_percent = round((1 - s$upper) * 100, 1),
-    ci_high_percent = round((1 - s$lower) * 100, 1)
-  )
-}
-
-bp140_landmark_ci <- lapply(names(tte_bp140), function(k) {
-  get_landmark_ci(tte_bp140[[k]], bp_labels[[k]], times = c(3, 6))
-}) %>%
-  bind_rows()
-
-cat("\nLandmark cumulative incidence at 3 and 6 months:\n")
-print(bp140_landmark_ci)
-
-# -----------------------------------------------------------------------------
-# 7. Optional clean markdown-style summaries for copy/paste
-# -----------------------------------------------------------------------------
-
-cat("\n")
-cat(strrep("-", 80), "\n")
-cat("COPY/PASTE SUMMARY\n")
-cat(strrep("-", 80), "\n\n")
-
-cat(
-  "Among patients with HDP and delivery BP >=140/90 mmHg, the restricted BP cohort included ",
-  length(bp140_delivery_ids),
-  " patients.\n",
-  sep = ""
-)
-
-cat("\nLog-rank results:\n")
-for (i in seq_len(nrow(bp140_logrank_summary))) {
-  cat(
-    "- ", bp140_logrank_summary$outcome[i],
-    ": n=", bp140_logrank_summary$n[i],
-    ", events=", bp140_logrank_summary$events[i],
-    ", early n=", bp140_logrank_summary$early_n[i],
-    ", late n=", bp140_logrank_summary$late_n[i],
-    ", log-rank p=", bp140_logrank_summary$logrank_p[i],
-    "\n",
-    sep = ""
-  )
-}
-
-cat("\nUnadjusted Cox results, Early vs Late:\n")
-for (i in seq_len(nrow(bp140_cox_summary))) {
-  cat(
-    "- ", bp140_cox_summary$outcome[i],
-    ": HR ", bp140_cox_summary$HR_95CI[i],
-    "\n",
-    sep = ""
-  )
-}
-
-cat("\n")
-cat(strrep("=", 80), "\n")
-cat(" END DR. DEMI CHECK\n")
 cat(strrep("=", 80), "\n")

@@ -15,12 +15,12 @@
 #
 # Outputs:
 #   /Results/Analysis/Tables/MD Files/
-#       table2_overall.md
+#       table1_overall.md
 #       table2_by_bp_130_80.md
 #       table2_by_bp_140_90.md
 #       table2_by_bp_combined.md
 #   /Results/Analysis/Tables/HTML Files/
-#       table2_overall.html
+#       table1_overall.html
 #       table2_by_bp_130_80.html
 #       table2_by_bp_140_90.html
 #       table2_by_bp_combined.html
@@ -134,7 +134,20 @@ table2_df <- analysis_df %>%
     bp_subgroup_140_90 = factor(
       bp_subgroup_140_90,
       levels = c("No HTN (<140/90 mmHg)", "HTN (>=140/90 mmHg)")
-    )
+    ),
+
+    prepreg_obesity = case_when(
+  is.na(PREGRAVID_BMI) ~ NA_character_,
+  PREGRAVID_BMI >= 30  ~ "Yes",
+  PREGRAVID_BMI < 30   ~ "No"
+),
+prepreg_obesity = factor(prepreg_obesity, levels = c("Yes", "No")),
+
+glp1_timing_2cat = factor(
+  glp1_timing_2cat,
+  levels = c("Early (< 6 months)", "Late (>= 6 months)")
+)
+
   )
 
 # =============================================================================
@@ -149,6 +162,9 @@ label_map <- list(
   glp1_first_drug_friendly = "First postpartum GLP-1 agent",
   glp1_indication_proxy    = "Branded indication (proxy)",
 
+  PREGRAVID_BMI   = "Pre-pregnancy BMI, kg/m^2",
+  prepreg_obesity = "Pre-pregnancy obesity, BMI >=30 kg/m^2",
+
   # Exposure intensity / persistence
   glp1_n_orders_pp         = "Number of GLP-1 orders postpartum",
   glp1_n_distinct_drugs    = "Number of distinct GLP-1 agents",
@@ -157,6 +173,7 @@ label_map <- list(
   glp1_persistence_cat     = "GLP-1 persistence category",
   glp1_active_at_6m_pp     = "Active GLP-1 at 6 months postpartum",
   glp1_active_at_12m_pp    = "Active GLP-1 at 12 months postpartum"
+  
 )
 
 table2_vars <- names(label_map)
@@ -166,7 +183,7 @@ table2_vars <- names(label_map)
 # =============================================================================
 shared_type <- list(
   all_continuous()                                            ~ "continuous",
-  c("glp1_active_at_6m_pp", "glp1_active_at_12m_pp")        ~ "dichotomous"
+  c("glp1_active_at_6m_pp", "glp1_active_at_12m_pp", "prepreg_obesity")        ~ "dichotomous"
 )
 
 shared_statistic <- list(
@@ -207,7 +224,7 @@ footnote_140_90 <- paste(
 # --- 5a. Overall ---
 cat("Building Table 2 (overall)...\n")
 
-table2_overall <- table2_df %>%
+table1_overall <- table2_df %>%
   select(all_of(table2_vars)) %>%
   tbl_summary(
     label     = label_map,
@@ -224,14 +241,14 @@ table2_overall <- table2_df %>%
   modify_caption("**Table 2.** GLP-1 exposure characteristics (overall cohort)") %>%
   bold_labels()
 
-# --- 5b. Stratified by ACC/AHA 2017 (130/80) ---
-cat("Building Table 2 (stratified by BP subgroup, 130/80 threshold)...\n")
+# --- 5b. Stratified by GLP-1 timing: Early vs Late ---
+cat("Building Table 2 (stratified by GLP-1 timing: early vs late)...\n")
 
-table2_by_bp_130_80 <- table2_df %>%
-  filter(!is.na(bp_subgroup_130_80)) %>%
-  select(all_of(table2_vars), bp_subgroup_130_80) %>%
+table2_by_timing <- table2_df %>%
+  filter(!is.na(glp1_timing_2cat)) %>%
+  select(all_of(table2_vars), glp1_timing_2cat) %>%
   tbl_summary(
-    by        = bp_subgroup_130_80,
+    by        = glp1_timing_2cat,
     label     = label_map,
     type      = shared_type,
     statistic = shared_statistic,
@@ -246,9 +263,16 @@ table2_by_bp_130_80 <- table2_df %>%
     all_stat_cols() ~ "**{level}**, N = {n}"
   ) %>%
   modify_caption(
-    "**Table 2a.** GLP-1 exposure characteristics by BP subgroup (ACC/AHA 2017: >=130/80 mmHg)"
+    "**Table 2a.** GLP-1 exposure characteristics by timing of GLP-1 initiation"
   ) %>%
-  modify_footnote(all_stat_cols() ~ footnote_130_80) %>%
+  modify_footnote(
+    all_stat_cols() ~ paste(
+      "Continuous variables: median (Q1, Q3); categorical: n (%).",
+      "P-values: Wilcoxon rank-sum for continuous, Fisher exact (simulated, B = 10,000) for categorical.",
+      "Early initiation was defined as GLP-1RA start <6 months postpartum; late initiation was defined as >=6 months postpartum.",
+      sep = " "
+    )
+  ) %>%
   bold_labels()
 
 # --- 5c. Stratified by traditional obstetric threshold (140/90) ---
@@ -278,18 +302,18 @@ table2_by_bp_140_90 <- table2_df %>%
   modify_footnote(all_stat_cols() ~ footnote_140_90) %>%
   bold_labels()
 
-# --- 5d. Combined dual-threshold comparison ---
-cat("Building Table 2 (combined dual-threshold)...\n")
+# --- 5d. Combined timing + traditional obstetric BP threshold comparison ---
+cat("Building Table 2 (combined timing + 140/90 BP threshold)...\n")
 
-table2_bp_combined <- tbl_merge(
-  tbls        = list(table2_by_bp_130_80, table2_by_bp_140_90),
+table2_combined <- tbl_merge(
+  tbls        = list(table2_by_timing, table2_by_bp_140_90),
   tab_spanner = c(
-    "**ACC/AHA 2017 Threshold (>=130/80 mmHg)**",
+    "**Timing of GLP-1 Initiation**",
     "**Traditional Obstetric Threshold (>=140/90 mmHg)**"
   )
 ) %>%
   modify_caption(
-    "**Table 2c.** GLP-1 exposure characteristics by BP subgroup — dual threshold comparison (ACC/AHA 2017 vs traditional obstetric)"
+    "**Table 2c.** GLP-1 exposure characteristics by timing of GLP-1 initiation and traditional obstetric BP threshold"
   )
 
 # =============================================================================
@@ -367,28 +391,32 @@ tbl_to_md <- function(tbl, caption) {
   paste(md, collapse = "\n")
 }
 
-md_overall      <- tbl_to_md(table2_overall,      "Table 2. GLP-1 exposure characteristics (overall cohort)")
-md_by_130_80    <- tbl_to_md(table2_by_bp_130_80, "Table 2a. GLP-1 exposure by BP subgroup (ACC/AHA 2017: >=130/80 mmHg)")
+md_overall      <- tbl_to_md(table1_overall,      "Table 2. GLP-1 exposure characteristics (overall cohort)")
+md_by_timing    <- tbl_to_md(table2_by_timing, "Table 2a. GLP-1 exposure by timing of GLP-1 initiation")
 md_by_140_90    <- tbl_to_md(table2_by_bp_140_90, "Table 2b. GLP-1 exposure by BP subgroup (traditional obstetric: >=140/90 mmHg)")
-md_bp_combined  <- tbl_to_md(table2_bp_combined,  "Table 2c. GLP-1 exposure by BP subgroup — dual threshold comparison")
+md_combined  <- tbl_to_md(
+  table2_combined,
+  "Table 2c. GLP-1 exposure by timing of GLP-1 initiation and traditional obstetric BP threshold"
+)
 
-writeLines(md_overall,     file.path(md_dir, "table2_overall.md"))
-writeLines(md_by_130_80,   file.path(md_dir, "table2_by_bp_130_80.md"))
+
+writeLines(md_overall,     file.path(md_dir, "table1_overall.md"))
+writeLines(md_by_timing,   file.path(md_dir, "table2_by_timing.md"))
 writeLines(md_by_140_90,   file.path(md_dir, "table2_by_bp_140_90.md"))
-writeLines(md_bp_combined, file.path(md_dir, "table2_by_bp_combined.md"))
+writeLines(md_combined, file.path(md_dir, "table2_combined_timing_bp_140_90.md"))
 
 # =============================================================================
 # 8. RENDER HTML OUTPUTS
 # =============================================================================
-html_overall     <- table2_overall      %>% as_gt() %>% nejm_style()
-html_by_130_80   <- table2_by_bp_130_80 %>% as_gt() %>% nejm_style()
+html_overall     <- table1_overall      %>% as_gt() %>% nejm_style()
+html_by_timing   <- table2_by_timing %>% as_gt() %>% nejm_style()
 html_by_140_90   <- table2_by_bp_140_90 %>% as_gt() %>% nejm_style()
-html_bp_combined <- table2_bp_combined  %>% as_gt() %>% nejm_style()
+html_combined <- table2_combined %>% as_gt() %>% nejm_style()
 
-gt::gtsave(html_overall,     file.path(html_dir, "table2_overall.html"))
-gt::gtsave(html_by_130_80,   file.path(html_dir, "table2_by_bp_130_80.html"))
+gt::gtsave(html_overall,     file.path(html_dir, "table1_overall.html"))
+gt::gtsave(html_by_timing,   file.path(html_dir, "table2_by_timing.html"))
 gt::gtsave(html_by_140_90,   file.path(html_dir, "table2_by_bp_140_90.html"))
-gt::gtsave(html_bp_combined, file.path(html_dir, "table2_by_bp_combined.html"))
+gt::gtsave(html_combined, file.path(html_dir, "table2_combined_timing_bp_140_90.html"))
 
 # =============================================================================
 # 9. PRINT MD TO CONSOLE
@@ -398,10 +426,9 @@ cat(" TABLE 2 — OVERALL\n")
 cat("================================================================\n\n")
 cat(md_overall, "\n\n")
 
-cat("================================================================\n")
-cat(" TABLE 2a — BY BP SUBGROUP (ACC/AHA 2017: >=130/80 mmHg)\n")
+cat(" TABLE 2a — BY GLP-1 TIMING (EARLY VS LATE)\n")
 cat("================================================================\n\n")
-cat(md_by_130_80, "\n\n")
+cat(md_by_timing, "\n\n")
 
 cat("================================================================\n")
 cat(" TABLE 2b — BY BP SUBGROUP (TRADITIONAL OBSTETRIC: >=140/90 mmHg)\n")
@@ -409,20 +436,20 @@ cat("================================================================\n\n")
 cat(md_by_140_90, "\n\n")
 
 cat("================================================================\n")
-cat(" TABLE 2c — DUAL THRESHOLD COMPARISON\n")
+cat(" TABLE 2c — COMBINED TIMING + 140/90 BP THRESHOLD\n")
 cat("================================================================\n\n")
-cat(md_bp_combined, "\n\n")
+cat(md_combined, "\n\n")
 
 cat("================================================================\n")
 cat(" FILES CREATED\n")
 cat("================================================================\n")
 cat("MD Files:\n")
-cat("  ", file.path(md_dir, "table2_overall.md"),        "\n")
-cat("  ", file.path(md_dir, "table2_by_bp_130_80.md"),   "\n")
+cat("  ", file.path(md_dir, "table1_overall.md"),        "\n")
+cat("  ", file.path(md_dir, "table2_by_timing.md"),   "\n")
 cat("  ", file.path(md_dir, "table2_by_bp_140_90.md"),   "\n")
-cat("  ", file.path(md_dir, "table2_by_bp_combined.md"), "\n")
+cat("  ", file.path(md_dir, "table2_combined_timing_bp_140_90.md"), "\n")
 cat("HTML Files:\n")
-cat("  ", file.path(html_dir, "table2_overall.html"),        "\n")
-cat("  ", file.path(html_dir, "table2_by_bp_130_80.html"),   "\n")
+cat("  ", file.path(html_dir, "table1_overall.html"),        "\n")
+cat("  ", file.path(html_dir, "table2_by_timing.html"),   "\n")
 cat("  ", file.path(html_dir, "table2_by_bp_140_90.html"),   "\n")
-cat("  ", file.path(html_dir, "table2_by_bp_combined.html"), "\n")
+cat("  ", file.path(html_dir, "table2_combined_timing_bp_140_90.html"), "\n")

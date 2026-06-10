@@ -28,23 +28,24 @@ dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 manuscript_order <- function(files) {
   base <- tools::file_path_sans_ext(basename(files))
 
-  # Priority key: (section_number, within_section_order)
-  # Lower = earlier in document
   key <- vapply(base, function(b) {
     bl <- tolower(b)
-    if (grepl("^consort",        bl)) "00_consort"
-    else if (grepl("^table1_overall", bl)) "10_table1_a"
-    else if (grepl("^table1",         bl)) "10_table1_b"
-    else if (grepl("^table2_overall", bl)) "20_table2_a"
-    else if (grepl("^table2_by_bp_combined", bl)) "20_table2_b"
-    else if (grepl("^table2_by_bp_130", bl)) "20_table2_c"
-    else if (grepl("^table2_by_bp_140", bl)) "20_table2_d"
-    else if (grepl("^table2",         bl)) "20_table2_e"
-    else if (grepl("^table3",         bl)) "30_table3"
-    else if (grepl("^table4",         bl)) "40_table4"
-    else if (grepl("^supp_table3",    bl)) "50_supp3"
-    else if (grepl("^supp_table4",    bl)) "60_supp4"
-    else if (grepl("^supp",           bl)) paste0("70_supp_", bl)
+    if      (grepl("^consort",                    bl)) "00_consort"
+    else if (grepl("^table1_overall",             bl)) "10_table1_a"
+    else if (grepl("^table1",                     bl)) "10_table1_b"
+    else if (grepl("^table2_overall",                    bl)) "20_table2_a"
+    else if (grepl("^table2_by_timing",                  bl)) "20_table2_b"
+    else if (grepl("^table2_by_bp_140",                  bl)) "20_table2_c"
+    else if (grepl("^table2_combined_timing_bp_140_90",  bl)) "20_table2_d"
+    else if (grepl("^table2",                            bl)) "20_table2_e"
+    else if (grepl("^table3",                     bl)) "30_table3"
+    else if (grepl("^table4",                     bl)) "40_table4"
+    else if (grepl("^figure_km",                  bl)) "45_figure_km"       # ← new
+    else if (grepl("^main_multivariable_cox",     bl)) "50_main_cox"        # ← new
+    else if (grepl("^suppl_univariate_cox",       bl)) "60_suppl_cox"       # ← new
+    else if (grepl("^supp_table3",                bl)) "70_supp3"
+    else if (grepl("^supp_table4",                bl)) "80_supp4"
+    else if (grepl("^supp",                       bl)) paste0("90_supp_", bl)
     else paste0("99_", bl)
   }, character(1))
 
@@ -71,9 +72,14 @@ html_files <- manuscript_order(html_files_raw)
 # Pretty label from filename: "table1_by_timing_2cat" -> "Table 1 - By Timing 2cat"
 pretty_label <- function(filename) {
   base <- tools::file_path_sans_ext(basename(filename))
-  base <- sub("^table([0-9]+)_", "Table \\1 - ",  base)
-  base <- sub("^supp_table([0-9]+)_", "Supp Table \\1 - ", base)
-  base <- sub("^consort_", "CONSORT - ", base)
+  base <- sub("^table2_by_timing", "Table 2 - By Early Vs Late GLP-1 Timing", base)
+  base <- sub("^table2_combined_timing_bp_140_90", "Table 2 - Combined Timing And 140 90 BP", base)
+  base <- sub("^table([0-9]+)_",             "Table \\1 - ",        base)
+  base <- sub("^supp_table([0-9]+)_",        "Supp Table \\1 - ",   base)
+  base <- sub("^consort_",                   "CONSORT - ",           base)
+  base <- sub("^figure_km_",                 "Figure KM - ",         base)   # ← new
+  base <- sub("^main_multivariable_cox_",    "Main Cox (MV) - ",     base)   # ← new
+  base <- sub("^suppl_univariate_cox_",      "Suppl Cox (UV) - ",    base)   # ← new
   tools::toTitleCase(gsub("_", " ", base))
 }
 
