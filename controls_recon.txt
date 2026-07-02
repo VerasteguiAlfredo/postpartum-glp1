@@ -1,0 +1,343 @@
+=== 1. INVENTORY ===
+# A tibble: 13 × 5
+   dataset              n_rows n_cols mem_mb key_candidate
+   <chr>                 <int>  <int>  <dbl> <chr>        
+ 1 alc_flow_controls    754923     24  148.  CURR_CLINIC  
+ 2 alc_ppi_controls     589782     17   77   CURR_CLINIC  
+ 3 alc_sdoh_controls    361965     20   62.6 CURR_CLINIC  
+ 4 alc_social_controls 6226918     10  549.  CURR_CLINIC  
+ 5 bmi_controls        4791392     24  921.  CURR_CLINIC  
+ 6 bp_controls         3909868     24  764.  CURR_CLINIC  
+ 7 hr_controls         3271453     24  606.  CURR_CLINIC  
+ 8 height_controls     1179613     24  242.  CURR_CLINIC  
+ 9 cohort_controls       49723     16    6.1 CURR_CLINIC  
+10 demo_controls         49723     10    3.8 CURR_CLINIC  
+11 dx_controls         8850008     19 1404.  CURR_CLINIC  
+12 labs_controls       6505314     31 1715.  CURR_CLINIC  
+13 ob_controls           83360     61   49.9 CURR_CLINIC  
+
+Total memory: 6.39 GB
+
+--- echo_ef_controls (spot check of used fields only) ---
+Rows: 7728  | Cols: 2051 
+Needed fields present:
+   curr_clinic procedure_date             ef            bsa 
+          TRUE           TRUE           TRUE           TRUE 
+
+=== 2. COLUMN NAMES ===
+
+--- alc_flow_controls (24 cols) ---
+ [1] "CURR_CLINIC"                 "delv_date"                  
+ [3] "Birth_Dt"                    "current_age"                
+ [5] "Assessment_Date"             "Assessment_Time"            
+ [7] "Assessment_ID"               "Assessment_Name"            
+ [9] "Assessment_Type_Description" "Fluid_Intake"               
+[11] "Fluid_Output"                "Device_Type"                
+[13] "Document_Source"             "Patient_Reported_Status"    
+[15] "Service_Type"                "Assessment_Subtype_Desc"    
+[17] "Assessment_Subtype_Code"     "Result"                     
+[19] "Result_Units"                "Encounter_Nbr"              
+[21] "Source"                      "Site"                       
+[23] "Site_Name"                   "Site_State"                 
+
+--- alc_ppi_controls (17 cols) ---
+ [1] "CURR_CLINIC"   "delv_date"     "Birth_Dt"      "current_age"  
+ [5] "Ans_Dt"        "Form_ID"       "Form_Name"     "Question_ID"  
+ [9] "Question_Text" "Ans_Text"      "Ans_Value"     "Ans_Provided" 
+[13] "Source"        "Site"          "Site_Name"     "Site_State"   
+[17] "Location_Desc"
+
+--- alc_sdoh_controls (20 cols) ---
+ [1] "CURR_CLINIC"               "delv_date"                
+ [3] "Birth_Dt"                  "current_age"              
+ [5] "PATIENT_FULL_NAME"         "ENCOUNTER_NUMBER"         
+ [7] "SDOH_DATA_ID"              "SDOH_ENTRY_PROVIDER_DK"   
+ [9] "PROVIDER_LAST_NAME"        "SITE_NAME"                
+[11] "SDOH_CONTACT_DTM"          "SDOH_DISPLAY_NAME"        
+[13] "SDOH_DOMAIN_DK"            "SDOH_DOMAIN"              
+[15] "SDOH_RULE_DK"              "SDOH_RULE_NAME"           
+[17] "SDOH_ANSWER_VALUE"         "SDOH_ANSWER"              
+[19] "SDOH_ENTRY_INTERPRETATION" "SDOH_CONCERN_LEVEL"       
+
+--- alc_social_controls (10 cols) ---
+ [1] "CURR_CLINIC"         "delv_date"           "Birth_Dt"           
+ [4] "current_age"         "Social_Hx_DTM"       "ENCOUNTER_NBR"      
+ [7] "Social_Hx_NAME"      "Social_Hx_Name_Abbr" "Social_Hx_Answer"   
+[10] "Source"             
+
+--- bmi_controls (24 cols) ---
+ [1] "CURR_CLINIC"                 "delv_date"                  
+ [3] "Birth_Dt"                    "current_age"                
+ [5] "Assessment_Date"             "Assessment_Time"            
+ [7] "Assessment_ID"               "Assessment_Name"            
+ [9] "Assessment_Type_Description" "Fluid_Intake"               
+[11] "Fluid_Output"                "Device_Type"                
+[13] "Document_Source"             "Patient_Reported_Status"    
+[15] "Service_Type"                "Assessment_Subtype_Desc"    
+[17] "Assessment_Subtype_Code"     "Result"                     
+[19] "Result_Units"                "Encounter_Nbr"              
+[21] "Source"                      "Site"                       
+[23] "Site_Name"                   "Site_State"                 
+
+--- bp_controls (24 cols) ---
+ [1] "CURR_CLINIC"                 "delv_date"                  
+ [3] "Birth_Dt"                    "current_age"                
+ [5] "Assessment_Date"             "Assessment_Time"            
+ [7] "Assessment_ID"               "Assessment_Name"            
+ [9] "Assessment_Type_Description" "Fluid_Intake"               
+[11] "Fluid_Output"                "Device_Type"                
+[13] "Document_Source"             "Patient_Reported_Status"    
+[15] "Service_Type"                "Assessment_Subtype_Desc"    
+[17] "Assessment_Subtype_Code"     "Result"                     
+[19] "Result_Units"                "Encounter_Nbr"              
+[21] "Source"                      "Site"                       
+[23] "Site_Name"                   "Site_State"                 
+
+--- hr_controls (24 cols) ---
+ [1] "CURR_CLINIC"                 "delv_date"                  
+ [3] "Birth_Dt"                    "current_age"                
+ [5] "Assessment_Date"             "Assessment_Time"            
+ [7] "Assessment_ID"               "Assessment_Name"            
+ [9] "Assessment_Type_Description" "Fluid_Intake"               
+[11] "Fluid_Output"                "Device_Type"                
+[13] "Document_Source"             "Patient_Reported_Status"    
+[15] "Service_Type"                "Assessment_Subtype_Desc"    
+[17] "Assessment_Subtype_Code"     "Result"                     
+[19] "Result_Units"                "Encounter_Nbr"              
+[21] "Source"                      "Site"                       
+[23] "Site_Name"                   "Site_State"                 
+
+--- height_controls (24 cols) ---
+ [1] "CURR_CLINIC"                 "delv_date"                  
+ [3] "Birth_Dt"                    "current_age"                
+ [5] "Assessment_Date"             "Assessment_Time"            
+ [7] "Assessment_ID"               "Assessment_Name"            
+ [9] "Assessment_Type_Description" "Fluid_Intake"               
+[11] "Fluid_Output"                "Device_Type"                
+[13] "Document_Source"             "Patient_Reported_Status"    
+[15] "Service_Type"                "Assessment_Subtype_Desc"    
+[17] "Assessment_Subtype_Code"     "Result"                     
+[19] "Result_Units"                "Encounter_Nbr"              
+[21] "Source"                      "Site"                       
+[23] "Site_Name"                   "Site_State"                 
+
+--- cohort_controls (16 cols) ---
+ [1] "CURR_CLINIC"  "delv_date"    "Birth_Dt"     "current_age"  "Deceased"    
+ [6] "Death_Dt"     "Gender"       "auth"         "FMC"          "Legal"       
+[11] "Privacy"      "Test_Patient" "Hospice"      "Dismissed"    "No_Contact"  
+[16] "Terminated"  
+
+--- demo_controls (10 cols) ---
+ [1] "CURR_CLINIC"          "delv_date"            "Birth_Dt"            
+ [4] "current_age"          "Ethnicity_Name"       "race_primary"        
+ [7] "race_secondary_race1" "race_secondary_race2" "race_secondary_race3"
+[10] "race_secondary_race4"
+
+--- dx_controls (19 cols) ---
+ [1] "CURR_CLINIC"              "delv_date"               
+ [3] "Birth_Dt"                 "current_age"             
+ [5] "Dx_Date"                  "Dx_Code"                 
+ [7] "Dx_Desc"                  "Dx_Type"                 
+ [9] "Primary_Dx_Flag"          "Dx_POA_Flag"             
+[11] "Encounter_Nbr"            "Visit_Nbr"               
+[13] "Patient_Type"             "Dx_Source"               
+[15] "Dx_Servicing_Provider_Id" "Dx_Site"                 
+[17] "Dx_Site_Name"             "Dx_Site_State"           
+[19] "Comments"                
+
+--- labs_controls (31 cols) ---
+ [1] "CURR_CLINIC"           "delv_date"             "Birth_Dt"             
+ [4] "current_age"           "Lab_Date"              "Lab_Time"             
+ [7] "Lab_Result_Date"       "Lab_Result_Time"       "Test_Code"            
+[10] "TestDesc"              "Lab_Panel_Code"        "Lab_Panel_Desc"       
+[13] "Lab_Panel_Type"        "Sample_Type_Desc"      "Resultn"              
+[16] "Resultc"               "Accession"             "Units"                
+[19] "Ranges"                "Rang_Ind"              "Range_Ind_Description"
+[22] "Status"                "Lab_type"              "Lab_Subtype"          
+[25] "Source"                "Site"                  "Site_Name"            
+[28] "Site_State"            "Facility"              "Encounter_Nbr"        
+[31] "Comments"             
+
+--- ob_controls (61 cols) ---
+ [1] "CURR_CLINIC"                    "delv_date"                     
+ [3] "Birth_Dt"                       "current_age"                   
+ [5] "OB_DELIVERY_FPK"                "SITE"                          
+ [7] "SITE_NAME"                      "SOURCE"                        
+ [9] "INDUCTION_DTM"                  "MEMBRANE_RUPTURE_DTM"          
+[11] "DELIVERY_DTM"                   "OB_DELIVERY_ADMIT_DTM"         
+[13] "OB_DELIVERY_DISCHARGE_DTM"      "BIRTH_WEIGHT_IN_OUNCES"        
+[15] "GESTATIONAL_AGE_IN_DAYS"        "GESTATIONAL_AGE_IN_WEEKS"      
+[17] "MATERNAL_ENCOUNTER_NUMBER"      "BABY_ENCOUNTER_NUMBER"         
+[19] "APGAR_1"                        "APGAR_5"                       
+[21] "APGAR_10"                       "LAST_MATERNAL_BMI"             
+[23] "LAST_MATERNAL_BMI_DTM"          "LAST_MATERNAL_WEIGHT_IN_OUNCES"
+[25] "LAST_MATERNAL_WEIGHT_DTM"       "PREGRAVID_BMI"                 
+[27] "PREGRAVID_WEIGHT_IN_OUNCES"     "DELIVERY_MODALITY"             
+[29] "DELIVERY_MODALITY_REASON"       "DELIVERY_BABY_POSITION"        
+[31] "DELIVERY_PRESENTATION"          "DELIVERY_PRESENTATION_A_P"     
+[33] "DELIVERY_PRESENTATION_L_R"      "DELIVERY_LIVING_STATUS"        
+[35] "DELIVERY_ANOMALIES"             "DELIVERY_COMPLICATIONS"        
+[37] "DELIVERY_ANALGESIC"             "DELIVERY_ANESTHESIA_METHOD"    
+[39] "DELIVERY_AUGMENTATION"          "DELIVERY_EPISIOTOMY"           
+[41] "DELIVERY_EPISIOTOMY_REASON"     "DELIVERY_LACERATION"           
+[43] "DELIVERY_PROCEDURES"            "INDUCTION_INDICATIONS"         
+[45] "INDUCTION_METHODS"              "GRAVIDITY"                     
+[47] "PARITY"                         "ABORTIONS"                     
+[49] "FULL_TERM"                      "PREMATURE"                     
+[51] "MULTIPLE_BIRTHS"                "LAST_MENSTRUAL_PERIOD_DTM"     
+[53] "ULTRASOUND_DTM"                 "INFERTILITY_TREATMENT"         
+[55] "PRIOR_CESAREAN_YN"              "PRIOR_CESAREAN_COUNT"          
+[57] "LABOR_ATTEMPT_YN"               "FATHER_NAME"                   
+[59] "NUMBER_OF_PRENATAL_VISITS"      "OB_C_SECTION_PRIORITY"         
+[61] "BABY_MCN"                      
+
+=== 3. HEAD(3) ===
+
+--- alc_flow_controls ---
+# A tibble: 3 × 12
+  CURR_CLINIC delv_date  Birth_Dt   current_age Assessment_Date Assessment_Time
+        <dbl> <date>     <date>           <dbl> <date>          <time>         
+1     3079931 2019-06-10 1974-07-01          50 2019-06-07      08:23:23       
+2     3079931 2019-06-10 1974-07-01          50 2019-06-07      08:23:23       
+3     3079931 2019-06-10 1974-07-01          50 2019-06-07      08:23:23       
+# ℹ 6 more variables: Assessment_ID <chr>, Assessment_Name <chr>,
+#   Assessment_Type_Description <chr>, Fluid_Intake <chr>, Fluid_Output <chr>,
+#   Device_Type <chr>
+
+--- alc_ppi_controls ---
+# A tibble: 3 × 12
+  CURR_CLINIC delv_date  Birth_Dt   current_age Ans_Dt     Form_ID     Form_Name
+        <dbl> <date>     <date>           <dbl> <date>     <chr>       <chr>    
+1     3079931 2019-06-10 1974-07-01          50 2019-06-07 47918|1400… MC SOCIA…
+2     3079931 2019-06-10 1974-07-01          50 2019-06-07 47918|1400… MC SOCIA…
+3     3079931 2019-06-10 1974-07-01          50 2019-06-07 47918|1400… MC SOCIA…
+# ℹ 5 more variables: Question_ID <chr>, Question_Text <chr>, Ans_Text <chr>,
+#   Ans_Value <dbl>, Ans_Provided <chr>
+
+--- alc_sdoh_controls ---
+# A tibble: 3 × 12
+  CURR_CLINIC delv_date  Birth_Dt   current_age PATIENT_FULL_NAME        
+        <dbl> <date>     <date>           <dbl> <chr>                    
+1    12695563 2023-03-20 1992-06-03          32 MORRIS,MADELINE JANE     
+2     7450198 2023-11-08 1993-03-08          31 OISHI,ELIZABETH KAY WIESE
+3    13279373 2023-11-26 1994-01-26          31 RAYPHAND,FLOMINA SINIO   
+# ℹ 7 more variables: ENCOUNTER_NUMBER <chr>, SDOH_DATA_ID <chr>,
+#   SDOH_ENTRY_PROVIDER_DK <chr>, PROVIDER_LAST_NAME <chr>, SITE_NAME <chr>,
+#   SDOH_CONTACT_DTM <dttm>, SDOH_DISPLAY_NAME <chr>
+
+--- alc_social_controls ---
+# A tibble: 3 × 10
+  CURR_CLINIC delv_date  Birth_Dt   current_age Social_Hx_DTM      
+        <dbl> <date>     <date>           <dbl> <dttm>             
+1     3079931 2019-06-10 1974-07-01          50 2018-11-16 00:00:00
+2     3079931 2019-06-10 1974-07-01          50 2018-11-16 00:00:00
+3     3079931 2019-06-10 1974-07-01          50 2018-11-16 00:00:00
+# ℹ 5 more variables: ENCOUNTER_NBR <chr>, Social_Hx_NAME <chr>,
+#   Social_Hx_Name_Abbr <chr>, Social_Hx_Answer <chr>, Source <chr>
+
+--- bmi_controls ---
+# A tibble: 3 × 12
+  CURR_CLINIC delv_date  Birth_Dt   current_age Assessment_Date Assessment_Time
+        <dbl> <date>     <date>           <dbl> <date>          <time>         
+1     3079931 2019-06-10 1974-07-01          50 2017-09-18      12:43          
+2     3079931 2019-06-10 1974-07-01          50 2017-09-18      12:43          
+3     3079931 2019-06-10 1974-07-01          50 2017-09-18      12:43          
+# ℹ 6 more variables: Assessment_ID <chr>, Assessment_Name <chr>,
+#   Assessment_Type_Description <chr>, Fluid_Intake <chr>, Fluid_Output <chr>,
+#   Device_Type <chr>
+
+--- bp_controls ---
+# A tibble: 3 × 12
+  CURR_CLINIC delv_date  Birth_Dt   current_age Assessment_Date Assessment_Time
+        <dbl> <date>     <date>           <dbl> <date>          <time>         
+1     3079931 2019-06-10 1974-07-01          50 2018-11-16      08:01          
+2     3079931 2019-06-10 1974-07-01          50 2018-12-07      09:32          
+3     3079931 2019-06-10 1974-07-01          50 2019-02-21      11:34          
+# ℹ 6 more variables: Assessment_ID <chr>, Assessment_Name <chr>,
+#   Assessment_Type_Description <chr>, Fluid_Intake <chr>, Fluid_Output <chr>,
+#   Device_Type <chr>
+
+--- hr_controls ---
+# A tibble: 3 × 12
+  CURR_CLINIC delv_date  Birth_Dt   current_age Assessment_Date Assessment_Time
+        <dbl> <date>     <date>           <dbl> <date>          <time>         
+1     3079931 2019-06-10 1974-07-01          50 2019-06-10      07:36          
+2     3079931 2019-06-10 1974-07-01          50 2019-06-10      09:09          
+3     3079931 2019-06-10 1974-07-01          50 2019-06-10      09:10          
+# ℹ 6 more variables: Assessment_ID <chr>, Assessment_Name <chr>,
+#   Assessment_Type_Description <chr>, Fluid_Intake <chr>, Fluid_Output <chr>,
+#   Device_Type <chr>
+
+--- height_controls ---
+# A tibble: 3 × 12
+  CURR_CLINIC delv_date  Birth_Dt   current_age Assessment_Date Assessment_Time
+        <dbl> <date>     <date>           <dbl> <date>          <time>         
+1     3079931 2019-06-10 1974-07-01          50 2017-09-18      12:43          
+2     3079931 2019-06-10 1974-07-01          50 2017-09-18      12:43          
+3     3079931 2019-06-10 1974-07-01          50 2019-04-05      07:52          
+# ℹ 6 more variables: Assessment_ID <chr>, Assessment_Name <chr>,
+#   Assessment_Type_Description <chr>, Fluid_Intake <chr>, Fluid_Output <chr>,
+#   Device_Type <chr>
+
+--- cohort_controls ---
+# A tibble: 3 × 12
+  CURR_CLINIC delv_date  Birth_Dt   current_age Deceased Death_Dt Gender auth 
+        <dbl> <date>     <date>           <dbl> <chr>    <date>   <chr>  <chr>
+1     3079931 2019-06-10 1974-07-01          50 N        NA       F      Y    
+2     3176737 2020-08-31 1975-12-24          49 N        NA       F      Y    
+3     3224747 2018-04-02 1976-10-14          48 N        NA       F      Y    
+# ℹ 4 more variables: FMC <chr>, Legal <chr>, Privacy <chr>, Test_Patient <chr>
+
+--- demo_controls ---
+# A tibble: 3 × 10
+  CURR_CLINIC delv_date  Birth_Dt   current_age Ethnicity_Name      race_primary
+        <dbl> <date>     <date>           <dbl> <chr>               <chr>       
+1     3079931 2019-06-10 1974-07-01          50 Not Hispanic or La… White       
+2     3176737 2020-08-31 1975-12-24          49 Not Hispanic or La… White       
+3     3224747 2018-04-02 1976-10-14          48 Not Hispanic or La… White       
+# ℹ 4 more variables: race_secondary_race1 <chr>, race_secondary_race2 <chr>,
+#   race_secondary_race3 <chr>, race_secondary_race4 <chr>
+
+--- dx_controls ---
+# A tibble: 3 × 12
+  CURR_CLINIC delv_date  Birth_Dt   current_age Dx_Date    Dx_Code Dx_Desc      
+        <dbl> <date>     <date>           <dbl> <date>     <chr>   <chr>        
+1     3079931 2019-06-10 1974-07-01          50 2018-06-11 Z31.69  Counseling P…
+2     3079931 2019-06-10 1974-07-01          50 2018-08-09 Z31.69  Counseling P…
+3     3079931 2019-06-10 1974-07-01          50 2018-08-09 Z31.69  Encounter fo…
+# ℹ 5 more variables: Dx_Type <chr>, Primary_Dx_Flag <chr>, Dx_POA_Flag <chr>,
+#   Encounter_Nbr <chr>, Visit_Nbr <dbl>
+
+--- labs_controls ---
+[1] 1 2 3
+
+--- ob_controls ---
+# A tibble: 3 × 12
+  CURR_CLINIC delv_date  Birth_Dt   current_age OB_DELIVERY_FPK SITE  SITE_NAME 
+        <dbl> <date>     <date>           <dbl> <chr>           <chr> <chr>     
+1     3079931 2019-06-10 1974-07-01          50 47918|103672851 RST   Rochester…
+2     3176737 2020-08-31 1975-12-24          49 47918|152311656 RST   Rochester…
+3     3224747 2018-04-02 1976-10-14          48 47918|72478151  MCHS  MCHS      
+# ℹ 5 more variables: SOURCE <chr>, INDUCTION_DTM <dttm>,
+#   MEMBRANE_RUPTURE_DTM <dttm>, DELIVERY_DTM <dttm>,
+#   OB_DELIVERY_ADMIT_DTM <dttm>
+
+=== 4. COHORT DELIVERY DATE ===
+delv_date range: 2017-07-06 2025-12-31 
+Missing delv_date: 0 
+Unique CURR_CLINIC: 36286 
+Rows in cohort_controls: 49723 
+
+=== 5. POST-FILTER SHRINKAGE (cohort-ID early filter) ===
+Cohort N: 36286 
+
+dx_controls             before:   8,850,008  after:  8,850,008  (100.00% retained)
+labs_controls           before:   6,505,314  after:  6,505,314  (100.00% retained)
+bp_controls             before:   3,909,868  after:  3,909,868  (100.00% retained)
+bmi_controls            before:   4,791,392  after:  4,791,392  (100.00% retained)
+hr_controls             before:   3,271,453  after:  3,271,453  (100.00% retained)
+height_controls         before:   1,179,613  after:  1,179,613  (100.00% retained)
+alc_social_controls     before:   6,226,918  after:  6,226,918  (100.00% retained)
+alc_flow_controls       before:     754,923  after:    754,923  (100.00% retained)
+alc_ppi_controls        before:     589,782  after:    589,782  (100.00% retained)
+alc_sdoh_controls       before:     361,965  after:    361,965  (100.00% retained)
