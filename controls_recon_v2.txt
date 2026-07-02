@@ -1,0 +1,139 @@
+=== 1. INVENTORY ===
+# A tibble: 4 × 5
+  dataset                n_rows n_cols mem_mb key_candidate
+  <chr>                   <int>  <int>  <dbl> <chr>        
+1 ord_meds_controls     4147618     40 1626.  CURR_CLINIC  
+2 patient_list_controls   49723     16    6.1 CURR_CLINIC  
+3 smoking_controls      7978868     11  670.  CURR_CLINIC  
+4 weight_controls       7247534     24 1404   CURR_CLINIC  
+
+Total memory: 3.62 GB
+
+=== 2. COLUMN NAMES ===
+
+--- ord_meds_controls (40 cols) ---
+ [1] "CURR_CLINIC"                  "delv_date"                   
+ [3] "Birth_Dt"                     "current_age"                 
+ [5] "Order_Date"                   "Order_Time"                  
+ [7] "Order_Type"                   "Order_Type_Desc"             
+ [9] "Order_Code"                   "Order_Name"                  
+[11] "Order_ID"                     "Ordering_Provider_Person_ID" 
+[13] "Approving_Provider_Person_ID" "Order_Desc"                  
+[15] "Source"                       "Site"                        
+[17] "Site_Name"                    "Inpatient_Flag"              
+[19] "Location_Desc"                "Location_Code"               
+[21] "Location_Level"               "Location_Nurse_Unit_Code"    
+[23] "Location_Nurse_Unit_Name"     "Location_Room_Name"          
+[25] "Site_State"                   "Order_Start_Date"            
+[27] "Order_Start_Time"             "Order_Stop_Date"             
+[29] "Order_Stop_Time"              "Order_Dose_Amount"           
+[31] "Order_Dose_Units"             "Order_Dose_Form_Route_Desc"  
+[33] "Order_Strength"               "Order_Strength_Units"        
+[35] "Med_Generic"                  "Controlled_Med_Flag"         
+[37] "Controlled_Med_Class"         "Order_Status"                
+[39] "Order_Sub_Status"             "Encounter_Nbr"               
+
+--- patient_list_controls (16 cols) ---
+ [1] "CURR_CLINIC"  "delv_date"    "Birth_Dt"     "current_age"  "Deceased"    
+ [6] "Death_Dt"     "Gender"       "auth"         "FMC"          "Legal"       
+[11] "Privacy"      "Test_Patient" "Hospice"      "Dismissed"    "No_Contact"  
+[16] "Terminated"  
+
+--- smoking_controls (11 cols) ---
+ [1] "CURR_CLINIC"    "delv_date"      "Birth_Dt"       "current_age"   
+ [5] "tob_dt"         "tob_tm"         "tob_name"       "tob_value"     
+ [9] "tob_seq"        "tob_src_system" "tob_src_key"   
+
+--- weight_controls (24 cols) ---
+ [1] "CURR_CLINIC"                 "delv_date"                  
+ [3] "Birth_Dt"                    "current_age"                
+ [5] "Assessment_Date"             "Assessment_Time"            
+ [7] "Assessment_ID"               "Assessment_Name"            
+ [9] "Assessment_Type_Description" "Fluid_Intake"               
+[11] "Fluid_Output"                "Device_Type"                
+[13] "Document_Source"             "Patient_Reported_Status"    
+[15] "Service_Type"                "Assessment_Subtype_Desc"    
+[17] "Assessment_Subtype_Code"     "Result"                     
+[19] "Result_Units"                "Encounter_Nbr"              
+[21] "Source"                      "Site"                       
+[23] "Site_Name"                   "Site_State"                 
+
+=== 3. HEAD(3) ===
+
+--- ord_meds_controls ---
+# A tibble: 3 × 12
+  CURR_CLINIC delv_date  Birth_Dt   current_age Order_Date Order_Time Order_Type
+        <dbl> <date>     <date>           <dbl> <date>     <time>     <chr>     
+1     3079931 2019-06-10 1974-07-01          50 2018-06-12 06:15      999       
+2     3079931 2019-06-10 1974-07-01          50 2018-06-12 06:15      999       
+3     3079931 2019-06-10 1974-07-01          50 2018-06-12 06:15      999       
+# ℹ 5 more variables: Order_Type_Desc <chr>, Order_Code <chr>,
+#   Order_Name <chr>, Order_ID <chr>, Ordering_Provider_Person_ID <chr>
+
+--- patient_list_controls ---
+# A tibble: 3 × 12
+  CURR_CLINIC delv_date  Birth_Dt   current_age Deceased Death_Dt Gender auth 
+        <dbl> <date>     <date>           <dbl> <chr>    <date>   <chr>  <chr>
+1     3079931 2019-06-10 1974-07-01          50 N        NA       F      Y    
+2     3176737 2020-08-31 1975-12-24          49 N        NA       F      Y    
+3     3224747 2018-04-02 1976-10-14          48 N        NA       F      Y    
+# ℹ 4 more variables: FMC <chr>, Legal <chr>, Privacy <chr>, Test_Patient <chr>
+
+--- smoking_controls ---
+# A tibble: 3 × 11
+  CURR_CLINIC delv_date  Birth_Dt   current_age tob_dt     tob_tm tob_name      
+        <dbl> <date>     <date>           <dbl> <date>     <time> <chr>         
+1     3079931 2019-06-10 1974-07-01          50 2017-09-18 12:43  SMOKING_STATU…
+2     3079931 2019-06-10 1974-07-01          50 2017-09-18 12:43  TOBACCO_STATU…
+3     3079931 2019-06-10 1974-07-01          50 2017-09-18 12:43  SMOKING_STATU…
+# ℹ 4 more variables: tob_value <chr>, tob_seq <dbl>, tob_src_system <chr>,
+#   tob_src_key <chr>
+
+--- weight_controls ---
+# A tibble: 3 × 12
+  CURR_CLINIC delv_date  Birth_Dt   current_age Assessment_Date Assessment_Time
+        <dbl> <date>     <date>           <dbl> <date>          <time>         
+1     3079931 2019-06-10 1974-07-01          50 2017-09-18      12:43          
+2     3079931 2019-06-10 1974-07-01          50 2017-09-18      12:43          
+3     3079931 2019-06-10 1974-07-01          50 2017-09-18      12:43          
+# ℹ 6 more variables: Assessment_ID <chr>, Assessment_Name <chr>,
+#   Assessment_Type_Description <chr>, Fluid_Intake <chr>, Fluid_Output <chr>,
+#   Device_Type <chr>
+
+=== 4. DOMAIN PROBES ===
+
+--- weight_controls: units distribution ---
+
+     oz              kg     lbs 
+6877201  223738  145888     707 
+Has Assessment_Date: TRUE 
+Has Result:          TRUE 
+
+--- smoking_controls: tob_name distribution (top 15) ---
+
+     SMOKING_STATUS_MU      TOBACCO_STATUS_MU TOBACCO_STATUS_SUMMARY 
+               1994871                1994856                1994575 
+SMOKING_STATUS_SUMMARY 
+               1994566 
+
+--- ord_meds_controls: key medication columns ---
+Expected med columns present:
+      Order_Name Order_Start_Date  Order_Stop_Date      Med_Generic 
+            TRUE             TRUE             TRUE             TRUE 
+Missing expected columns:
+character(0)
+
+--- patient_list_controls: overlap with cohort_controls ---
+N unique CURR_CLINIC in patient_list: 36286 
+N unique CURR_CLINIC in cohort:      36286 
+In patient_list only:  0 
+In cohort only:        0 
+Common:                36286 
+
+=== 5. POST-FILTER SHRINKAGE ===
+Cohort N: 36286 
+
+ord_meds_controls         before:  4,147,618  after:  4,147,618  (100.00% retained)
+patient_list_controls     before:     49,723  after:     49,723  (100.00% retained)
+smoking_controls          before:  7,978,868  after:  7,978,868  (100.00% retained)
+weight_controls           before:  7,247,534  after:  7,247,534  (100.00% retained)

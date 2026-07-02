@@ -7,8 +7,9 @@
 #
 # INPUTS  : the *_controls tibbles already loaded in .GlobalEnv by the loader:
 #           cohort_controls, demo_controls, ob_controls, bp_controls,
-#           bmi_controls, hr_controls, height_controls, dx_controls,
-#           labs_controls, alc_ppi_controls, alc_social_controls, echo_ef_controls
+#           bmi_controls, hr_controls, height_controls, weight_controls,
+#           dx_controls, labs_controls, alc_ppi_controls, alc_social_controls,
+#           smoking_controls, ord_meds_controls, echo_ef_controls
 #
 # OUTPUTS : analysis_df_controls  — wide, one row per patient
 #           vitals_long_controls  — long-format BP/weight (delivery-anchored)
@@ -17,9 +18,9 @@
 #
 # -----------------------------------------------------------------------------
 # CONTROL-SPECIFIC DECISIONS (review with Dr. Demi before PSM):
-#   (1) No GLP-1 exposure. Section 3 is replaced by a control stub:
-#       treatment_group = "Control", index_date = delv_date, and all glp1_*
-#       columns are set to NA / FALSE so the schema aligns with treatment.
+#   (1) No GLP-1 exposure. Section 3 is a control stub:
+#       treatment_group = "Control", index_date = delv_date, all glp1_*
+#       columns NA / FALSE so the schema aligns with treatment.
 #   (2) Baselines are DELIVERY-ANCHORED (there is no drug-start date):
 #         primary  = closest measurement 42–132 d postpartum
 #         pp       = closest measurement 0–90 d postpartum (fallback)
@@ -28,14 +29,14 @@
 #   (3) events_df TTE uses a PROVISIONAL delivery clock. The real per-control
 #       pseudo-index should be assigned AFTER PSM from the matched treated
 #       patient's days_pp_to_glp1. Treat control TTE here as provisional.
-#   (4) Tables not extracted for controls (ecg, ord_meds) produce all-NA/FALSE
-#       columns. They CANNOT be PSM matching variables unless sourced later.
+#   (4) ECG was not extracted for controls -> emits all-NA columns. It cannot be
+#       a PSM matching variable unless sourced later. (Treatment carries ECG.)
 #
-# STRUCTURAL DIFFERENCES vs treatment v3:
-#   - weight: no weight_controls file. Derive weight_kg from BMI x height^2
-#             (or use raw weight rows if bmi_controls happens to carry them).
-#   - smoking: no smoking_controls file. Attempt recovery from
-#              alc_social_controls social-history codes; else set to Unknown.
+# v4 UPDATE (real files now available — stubs removed):
+#   - weight: uses weight_controls directly (Result + Result_Units; oz/kg/lbs).
+#   - smoking: uses smoking_controls (tob_dt / tob_name / tob_value),
+#              SMOKING_STATUS_SUMMARY only — identical to treatment v3.
+#   - ord_meds: uses ord_meds_controls (Order_Name / Med_Generic / dates).
 #   - keyword matching (dx, labs) runs on UNIQUE description strings, then maps
 #     back to patients — the key speedup for 8.85M dx / 6.5M lab rows.
 #
@@ -60,8 +61,13 @@ proj_root <- if (sys_name == "Darwin") {
 } else {
   "C:/Users/m320532/Desktop/Research/VS Code Projects/postpartum-glp1"
 }
-out_dir <- file.path(proj_root, "data_processed")
-if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+# Split outputs: .rds in one folder, .csv in another (per Alf's new structure)
+out_dir     <- file.path(proj_root, "data_processed")
+out_dir_rds <- file.path(out_dir, "rds_processed")
+out_dir_csv <- file.path(out_dir, "csv_processed")
+for (d in c(out_dir, out_dir_rds, out_dir_csv)) {
+  if (!dir.exists(d)) dir.create(d, recursive = TRUE, showWarnings = FALSE)
+}
 
 # =============================================================================
 # 0. HELPERS
@@ -132,9 +138,6 @@ consolidate_race <- function(primary, secondary1, secondary2) {
 }
 
 # --- Fast keyword flag over UNIQUE description strings, then map to patients --
-# desc_lookup : data.table with columns (CURR_CLINIC, desc)  [desc already lower]
-# unique_desc : character vector of unique desc values
-# Returns tibble(CURR_CLINIC, <label> = TRUE) for matched patients only.
 kw_flag_fast <- function(desc_lookup, unique_desc, patterns, label,
                          word_boundary_terms = NULL) {
   base_terms <- setdiff(patterns, word_boundary_terms)
@@ -153,9 +156,10 @@ kw_flag_fast <- function(desc_lookup, unique_desc, patterns, label,
 # 1. VERIFY / MAP LOADED CONTROL TABLES
 # =============================================================================
 required_controls <- c("cohort_controls", "demo_controls", "ob_controls",
-                       "bp_controls", "bmi_controls", "hr_controls",
-                       "height_controls", "dx_controls", "labs_controls",
+                       "bp_controls", "hr_controls", "height_controls",
+                       "weight_controls", "dx_controls", "labs_controls",
                        "alc_ppi_controls", "alc_social_controls",
+                       "smoking_controls", "ord_meds_controls",
                        "echo_ef_controls")
 missing_req <- required_controls[!sapply(required_controls, exists)]
 if (length(missing_req) > 0) {
@@ -164,55 +168,27 @@ if (length(missing_req) > 0) {
 }
 cat("All required control datasets found.\n")
 
-# Map _controls names to the generic names used in the v3 body (keeps the
-# analysis logic identical and reduces transcription error).
-cohort   <- cohort_controls
-demo     <- demo_controls
-ob       <- ob_controls
-bp_flow  <- bp_controls
-bmi_flow <- bmi_controls
-hr_flow  <- hr_controls
+# Map _controls names to the generic names used in the v3 body
+cohort      <- cohort_controls
+demo        <- demo_controls
+ob          <- ob_controls
+bp_flow     <- bp_controls
+hr_flow     <- hr_controls
 height_flow <- height_controls
-dx       <- dx_controls
-labs     <- labs_controls
-alc_ppi  <- alc_ppi_controls
-alc_social <- alc_social_controls
-echo_ef  <- echo_ef_controls
+weight_flow <- weight_controls      # NEW: real weight file
+dx          <- dx_controls
+labs        <- labs_controls
+alc_ppi     <- alc_ppi_controls
+alc_social  <- alc_social_controls
+smoking     <- smoking_controls     # NEW: real smoking file
+ord_meds    <- ord_meds_controls    # NEW: real ordered-meds file
+echo_ef     <- echo_ef_controls
 
-# Optional tables (may not exist for controls) — detect gracefully
-have_smoking  <- exists("smoking_controls")
-have_ecg      <- exists("ecg_controls")
-have_ord_meds <- exists("ord_meds_controls")
-cat(sprintf("Optional tables — smoking:%s  ecg:%s  ord_meds:%s\n",
-            have_smoking, have_ecg, have_ord_meds))
-
-# =============================================================================
-# 1b. STRUCTURE PROBES (auto-detect weight & smoking sources; PRINT findings)
-# =============================================================================
-cat("\n=== PROBE: bmi_controls content (BMI vs raw weight rows) ===\n")
-bmi_probe <- bmi_flow %>%
-  mutate(u = tolower(trimws(Result_Units))) %>%
-  count(Assessment_Name, Result_Units, sort = TRUE) %>%
-  head(15)
-print(bmi_probe)
-
-# Does bmi_controls carry raw weight rows (kg/lb/oz units) or only BMI?
-bmi_units <- tolower(trimws(unique(bmi_flow$Result_Units)))
-has_raw_weight_rows <- any(bmi_units %in%
-  c("kg","kilogram","kilograms","lb","lbs","pound","pounds","oz","ounce","ounces","g","gram","grams"))
-cat("Raw weight-unit rows present in bmi_controls:", has_raw_weight_rows, "\n")
-
-cat("\n=== PROBE: alc_social_controls social-history codes (smoking hunt) ===\n")
-soc_codes <- alc_social %>%
-  count(Social_Hx_Name_Abbr, Social_Hx_NAME, sort = TRUE) %>%
-  head(25)
-print(soc_codes)
-smoking_abbr <- alc_social %>%
-  filter(str_detect(Social_Hx_Name_Abbr, regex("smok|tobac|cigar", ignore_case = TRUE)) |
-         str_detect(Social_Hx_NAME,      regex("smok|tobac|cigar", ignore_case = TRUE))) %>%
-  distinct(Social_Hx_Name_Abbr) %>% pull(Social_Hx_Name_Abbr)
-cat("Smoking-like social-hx abbrs found:",
-    if (length(smoking_abbr)) paste(smoking_abbr, collapse=", ") else "(none)", "\n")
+# ECG still not extracted for controls (treatment carries it)
+have_ecg <- exists("ecg_controls")
+cat(sprintf("weight:%s  smoking:%s  ord_meds:%s  ecg:%s\n",
+            exists("weight_controls"), exists("smoking_controls"),
+            exists("ord_meds_controls"), have_ecg))
 
 # =============================================================================
 # 2. COHORT BACKBONE
@@ -226,7 +202,7 @@ cohort_clean <- cohort %>%
          Deceased, Death_Dt, Hospice, Dismissed) %>%
   group_by(CURR_CLINIC) %>%
   arrange(delv_date, .by_group = TRUE) %>%
-  slice(1) %>%                       # earliest delivery per patient (== v3)
+  slice(1) %>%
   ungroup()
 
 cat("\nCohort after auth/privacy filter:", nrow(cohort_clean), "patients\n")
@@ -265,11 +241,8 @@ ob_clean <- ob %>%
          PRIOR_CESAREAN_YN, LABOR_ATTEMPT_YN, APGAR_1, APGAR_5)
 
 # =============================================================================
-# 3. CONTROL EXPOSURE STUB  (replaces treatment GLP-1 section)
+# 3. CONTROL EXPOSURE STUB
 # =============================================================================
-# Controls have no GLP-1. We build an exposure_df with the SAME columns the
-# rest of the pipeline references, so downstream code (and later row-binding
-# with the treatment analysis_df) sees an identical schema.
 exposure_df <- cohort_clean %>%
   select(CURR_CLINIC, delv_date) %>%
   mutate(
@@ -290,7 +263,6 @@ exposure_df <- cohort_clean %>%
     glp1_timing_2cat         = factor(NA, levels = c("Early (< 6 months)","Late (>= 6 months)")),
     glp1_persistence_cat     = factor(NA, levels = c("< 1 month","1-3 months","3-6 months",
                                                      "6-12 months","≥ 12 months","Unknown")),
-    # index_date = delivery date (delivery-anchored, same convention as v3)
     index_date               = delv_date,
     glp1_active_at_6m_pp     = FALSE,
     glp1_active_at_12m_pp    = FALSE
@@ -310,7 +282,7 @@ bp_long <- bp_flow %>%
   select(CURR_CLINIC, meas_date = Assessment_Date, sbp, dbp,
          Encounter_Nbr, Site, Site_State)
 
-# ---- Height (needed to derive weight from BMI) ----
+# ---- Height (still kept for BMI derivation from weight+height) ----
 ht_long <- height_flow %>%
   filter(!is.na(Result), !is.na(Result_Units)) %>%
   mutate(Assessment_Date = as.Date(Assessment_Date),
@@ -321,37 +293,14 @@ height_summary <- ht_long %>%
   group_by(CURR_CLINIC) %>%
   summarise(height_cm = median(height_cm, na.rm = TRUE), .groups = "drop")
 
-# ---- Weight (controls have no weight file) ----
-# Path A: if bmi_controls carries raw weight rows, use them directly.
-# Path B: otherwise derive weight_kg = BMI * (height_m)^2, per measurement date,
-#         using the patient's median height.
-if (has_raw_weight_rows) {
-  cat("\nWeight source: raw weight rows found in bmi_controls (Path A)\n")
-  wt_long <- bmi_flow %>%
-    filter(!is.na(Result), !is.na(Result_Units),
-           tolower(trimws(Result_Units)) %in%
-             c("kg","kilogram","kilograms","lb","lbs","pound","pounds",
-               "oz","ounce","ounces","g","gram","grams")) %>%
-    mutate(Assessment_Date = as.Date(Assessment_Date),
-           weight_kg = weight_to_kg(Result, Result_Units)) %>%
-    filter(!is.na(weight_kg), weight_kg > 30, weight_kg < 350) %>%
-    select(CURR_CLINIC, meas_date = Assessment_Date, weight_kg,
-           Encounter_Nbr, Site, Site_State)
-} else {
-  cat("\nWeight source: derived from BMI x height^2 (Path B)\n")
-  bmi_meas <- bmi_flow %>%
-    filter(!is.na(Result)) %>%
-    mutate(Assessment_Date = as.Date(Assessment_Date),
-           bmi_val = to_num(Result)) %>%
-    filter(!is.na(bmi_val), bmi_val > 10, bmi_val < 90) %>%
-    select(CURR_CLINIC, meas_date = Assessment_Date, bmi_val,
-           Encounter_Nbr, Site, Site_State)
-  wt_long <- bmi_meas %>%
-    left_join(height_summary, by = "CURR_CLINIC") %>%
-    mutate(weight_kg = bmi_val * (height_cm / 100)^2) %>%
-    filter(!is.na(weight_kg), weight_kg > 30, weight_kg < 350) %>%
-    select(CURR_CLINIC, meas_date, weight_kg, Encounter_Nbr, Site, Site_State)
-}
+# ---- Weight (real weight_controls file; units mostly oz, some kg/lbs) ----
+wt_long <- weight_flow %>%
+  filter(!is.na(Result), !is.na(Result_Units)) %>%
+  mutate(Assessment_Date = as.Date(Assessment_Date),
+         weight_kg = weight_to_kg(Result, Result_Units)) %>%
+  filter(!is.na(weight_kg), weight_kg > 30, weight_kg < 350) %>%
+  select(CURR_CLINIC, meas_date = Assessment_Date, weight_kg,
+         Encounter_Nbr, Site, Site_State)
 cat("Weight measurements assembled:", nrow(wt_long), "rows\n")
 
 # ---- Long-format vitals around delivery ----
@@ -370,9 +319,7 @@ vitals_long <- bind_rows(
   filter(meas_date >= delv_date - 90,
          meas_date <= delv_date + 365) %>%
   mutate(days_from_delivery = as.numeric(meas_date - delv_date),
-         # controls: index = delivery, so days_from_glp1 == days_from_delivery
-         days_from_glp1     = as.numeric(meas_date - delv_date),
-         # period relative to delivery (index) — "post" = on/after delivery
+         days_from_glp1     = as.numeric(meas_date - delv_date),   # index = delivery
          period_glp1 = case_when(
            meas_date <  delv_date ~ "pre",
            meas_date >= delv_date ~ "post"
@@ -381,13 +328,6 @@ vitals_long <- bind_rows(
 # =============================================================================
 # 5. PER-PATIENT BASELINE & POST-INDEX VITAL SUMMARIES (DELIVERY-ANCHORED)
 # =============================================================================
-# Control baseline tiers (delivery-anchored — see header decision #2):
-#   PRIMARY  : closest measurement 42–132 d postpartum (target = delv+42,
-#              side="after", window 90, min 42 d pp)
-#   PP       : closest measurement 0–90 d postpartum (target = delv, side="after",
-#              window 90, min 0 d pp)   [fallback]
-#   SENS     : closest measurement within 90 d either side of delivery
-#   COMBINED : PRIMARY -> PP fallback
 summarise_vital_delivery_anchored <- function(df, vital_name) {
   safe_first <- function(x) if (length(x) == 0) NA else x[1]
   sub <- df %>% filter(vital == vital_name)
@@ -526,12 +466,9 @@ events_df <- exposure_df %>%
 # =============================================================================
 # 8. COMORBIDITIES — keyword-based (UNIQUE-STRING optimized for scale)
 # =============================================================================
-# Build a lean data.table lookup (CURR_CLINIC + lowered Dx_Desc), sliced by
-# window, then match all patterns against the UNIQUE desc strings.
 dx_dt <- as.data.table(dx)[, .(CURR_CLINIC,
                                Dx_Date = as.Date(Dx_Date),
                                desc    = str_to_lower(Dx_Desc))]
-# attach the (deduped) delivery date
 dx_dt <- merge(dx_dt,
                as.data.table(cohort_clean)[, .(CURR_CLINIC, delv_date)],
                by = "CURR_CLINIC", all.x = FALSE)
@@ -621,7 +558,6 @@ preg_htn_any <- kw_flag_fast(dx_preg, uniq_preg, c("hypertension"), "preg_htn_an
 preg_htn_gestational <- kw_flag_fast(dx_preg, uniq_preg,
   c("gestational hypertension","pregnancy-induced hypertension","hypertension gestational"),
   "preg_htn_gestational")
-# preeclampsia: exclude postpartum/puerperium (captured separately)
 preg_preec_desc <- uniq_preg[
   str_detect(uniq_preg, regex("preeclampsia|pre-eclampsia|pre eclampsia", ignore_case = TRUE)) &
   !str_detect(uniq_preg, regex("postpartum|puerperium|post-partum", ignore_case = TRUE))]
@@ -721,13 +657,10 @@ lab_keymap <- list(
   non_hdl  = "NON-HDL|NON HDL",
   crp      = "C-REACTIVE PROTEIN|\\bCRP\\b|HIGH SENSITIVITY CRP|HS-CRP"
 )
-domain_order <- c("hba1c","glucose","creat","egfr","alb_creat_ratio","alt","ast",
-                  "albumin","bilirubin","ldl","hdl","tc","trig","non_hdl","crp")
 keymap_by_domain <- setNames(lab_keymap, c(
   "hba1c","glucose","creat","egfr","alb_creat_ratio","alt","ast","albumin",
   "bilirubin","ldl","hdl","tc","trig","non_hdl","crp"))
 
-# Build UNIQUE (TestDesc, Panel, Subtype) combos and classify once.
 labs_dt <- as.data.table(labs)[, .(
   CURR_CLINIC,
   Lab_Date = as.Date(Lab_Date),
@@ -761,15 +694,13 @@ cat("\nLab matches by domain:\n")
 print(labs_long_all %>% count(lab_domain, sort = TRUE))
 rm(labs_dt, combo); gc()
 
-# Attach delivery date; controls have no glp1_index_date (baseline = pre-delivery)
 labs_long <- labs_long_all %>%
   inner_join(exposure_df %>% select(CURR_CLINIC, delv_date, glp1_index_date),
              by = "CURR_CLINIC", relationship = "many-to-one") %>%
   filter(!is.na(Resultn)) %>%
   mutate(days_from_delivery = as.numeric(Lab_Date - delv_date),
-         days_from_glp1     = as.numeric(Lab_Date - delv_date))  # index = delivery
+         days_from_glp1     = as.numeric(Lab_Date - delv_date))
 
-# Per-patient lab summary (baseline = closest pre-delivery; post windows from delivery)
 summarise_lab <- function(df, dom) {
   safe_first <- function(x) if (length(x) == 0) NA else x[1]
   sub <- df %>% filter(lab_domain == dom)
@@ -814,62 +745,52 @@ labs_wide <- purrr::map(lab_domains_of_interest, ~ summarise_lab(labs_long, .x))
   reduce(full_join, by = "CURR_CLINIC")
 
 # =============================================================================
-# 10. SMOKING — recover from alc_social_controls if possible; else Unknown
+# 10. SMOKING — real smoking_controls file (SMOKING_STATUS_SUMMARY, == v3)
 # =============================================================================
+# tob_value examples in controls: No, Never, Yes, Quit, Former, Every Day,
+# Some Days, Never Smoker, Current User, Current Every Day Smoker, Former Smoker,
+# Not Currently Unknown History, Never Assessed, Unknown.
 map_smoking <- function(x) {
   case_when(
-    str_detect(x, regex("never", ignore_case = TRUE))                            ~ "Never",
-    str_detect(x, regex("former|quit|ex-?smoker", ignore_case = TRUE))           ~ "Former",
-    str_detect(x, regex("current|every day|some days|daily|^yes$", ignore_case = TRUE)) ~ "Current",
-    str_detect(x, regex("^no$", ignore_case = TRUE))                             ~ "Never",
-    str_detect(x, regex("never assessed|unknown|declined", ignore_case = TRUE))  ~ "Unknown",
-    TRUE                                                                          ~ "Unknown"
+    str_detect(x, regex("never", ignore_case = TRUE))                                    ~ "Never",
+    str_detect(x, regex("former|quit|ex-?smoker", ignore_case = TRUE))                   ~ "Former",
+    str_detect(x, regex("current|every day|some days|daily|^yes$", ignore_case = TRUE))  ~ "Current",
+    str_detect(x, regex("not currently", ignore_case = TRUE))                            ~ "Former",
+    str_detect(x, regex("^no$", ignore_case = TRUE))                                     ~ "Never",
+    str_detect(x, regex("never assessed|unknown|declined", ignore_case = TRUE))          ~ "Unknown",
+    TRUE                                                                                  ~ "Unknown"
   )
 }
 
-if (length(smoking_abbr) > 0) {
-  cat("\nSmoking source: recovered from alc_social_controls (",
-      paste(smoking_abbr, collapse=", "), ")\n")
-  smoke_src <- alc_social %>%
-    mutate(dt = as.Date(Social_Hx_DTM)) %>%
-    filter(Social_Hx_Name_Abbr %in% smoking_abbr, !is.na(Social_Hx_Answer)) %>%
-    select(-any_of("delv_date")) %>%
-    inner_join(exposure_df %>% select(CURR_CLINIC, delv_date),
-               by = "CURR_CLINIC", relationship = "many-to-one")
-  smoking_pre_preg <- smoke_src %>%
-    filter(dt <= (delv_date - 280)) %>%
-    group_by(CURR_CLINIC) %>% arrange(desc(dt), .by_group = TRUE) %>% slice(1) %>% ungroup() %>%
-    transmute(CURR_CLINIC,
-              smoking_status_pre_preg = factor(map_smoking(Social_Hx_Answer),
-                                               levels = c("Never","Former","Current","Unknown")),
-              smoking_status_pre_preg_raw = Social_Hx_Answer,
-              smoking_status_pre_preg_date = dt)
-  smoking_pre_delv <- smoke_src %>%
-    filter(dt <= delv_date) %>%
-    group_by(CURR_CLINIC) %>% arrange(desc(dt), .by_group = TRUE) %>% slice(1) %>% ungroup() %>%
-    transmute(CURR_CLINIC,
-              smoking_status_pre_delv = factor(map_smoking(Social_Hx_Answer),
-                                               levels = c("Never","Former","Current","Unknown")),
-              smoking_status_pre_delv_raw = Social_Hx_Answer,
-              smoking_status_pre_delv_date = dt)
-  smoking_clean <- smoking_pre_preg %>%
-    full_join(smoking_pre_delv, by = "CURR_CLINIC") %>%
-    mutate(smoking_status = coalesce(smoking_status_pre_preg, smoking_status_pre_delv),
-           smoking_ever   = smoking_status %in% c("Former","Current"))
-} else {
-  cat("\nSmoking source: NONE found for controls — emitting Unknown/NA columns.\n")
-  smoking_clean <- tibble(
-    CURR_CLINIC = cohort_clean$CURR_CLINIC,
-    smoking_status_pre_preg = factor(NA, levels = c("Never","Former","Current","Unknown")),
-    smoking_status_pre_preg_raw = NA_character_,
-    smoking_status_pre_preg_date = as.Date(NA),
-    smoking_status_pre_delv = factor(NA, levels = c("Never","Former","Current","Unknown")),
-    smoking_status_pre_delv_raw = NA_character_,
-    smoking_status_pre_delv_date = as.Date(NA),
-    smoking_status = factor(NA, levels = c("Never","Former","Current","Unknown")),
-    smoking_ever = NA
-  )
-}
+smoking_long <- smoking %>%
+  mutate(tob_dt = as.Date(tob_dt)) %>%
+  filter(tob_name == "SMOKING_STATUS_SUMMARY", !is.na(tob_value)) %>%
+  select(-any_of("delv_date")) %>%
+  inner_join(exposure_df %>% select(CURR_CLINIC, delv_date),
+             by = "CURR_CLINIC", relationship = "many-to-one")
+
+smoking_pre_preg <- smoking_long %>%
+  filter(tob_dt <= (delv_date - 280)) %>%
+  group_by(CURR_CLINIC) %>% arrange(desc(tob_dt), .by_group = TRUE) %>% slice(1) %>% ungroup() %>%
+  transmute(CURR_CLINIC,
+            smoking_status_pre_preg = factor(map_smoking(tob_value),
+                                             levels = c("Never","Former","Current","Unknown")),
+            smoking_status_pre_preg_raw  = tob_value,
+            smoking_status_pre_preg_date = tob_dt)
+
+smoking_pre_delv <- smoking_long %>%
+  filter(tob_dt <= delv_date) %>%
+  group_by(CURR_CLINIC) %>% arrange(desc(tob_dt), .by_group = TRUE) %>% slice(1) %>% ungroup() %>%
+  transmute(CURR_CLINIC,
+            smoking_status_pre_delv = factor(map_smoking(tob_value),
+                                             levels = c("Never","Former","Current","Unknown")),
+            smoking_status_pre_delv_raw  = tob_value,
+            smoking_status_pre_delv_date = tob_dt)
+
+smoking_clean <- smoking_pre_preg %>%
+  full_join(smoking_pre_delv, by = "CURR_CLINIC") %>%
+  mutate(smoking_status = coalesce(smoking_status_pre_preg, smoking_status_pre_delv),
+         smoking_ever   = smoking_status %in% c("Former","Current"))
 
 # =============================================================================
 # 11. ALCOHOL — pre-pregnancy and pre-delivery anchors (same as treatment)
@@ -985,48 +906,48 @@ if (have_ecg) {
     slice(1) %>% ungroup() %>% rename(ecg_date = ECG_Date)
 } else {
   cat("ECG: not available for controls — emitting NA columns.\n")
-  ecg_clean <- tibble(CURR_CLINIC = numeric(0),
-    ecg_date = as.Date(character(0)),
-    ecg_hr = numeric(0), ecg_pr_interval = numeric(0), ecg_qrs_duration = numeric(0),
-    ecg_qt_interval = numeric(0), ecg_qtc = numeric(0), ecg_qtf = numeric(0))
+  ecg_clean <- tibble(
+    CURR_CLINIC      = cohort_clean$CURR_CLINIC,
+    ecg_date         = as.Date(NA),
+    ecg_hr           = NA_real_,
+    ecg_pr_interval  = NA_real_,
+    ecg_qrs_duration = NA_real_,
+    ecg_qt_interval  = NA_real_,
+    ecg_qtc          = NA_real_,
+    ecg_qtf          = NA_real_
+  )
 }
 
 # =============================================================================
-# 13. CONCOMITANT MEDS — not extracted for controls → all-FALSE stub
+# 13. CONCOMITANT MEDS — real ord_meds_controls file (active near delivery)
 # =============================================================================
-med_cols <- c("med_metformin","med_insulin","med_sglt2","med_acei","med_arb",
-              "med_betablocker","med_ccb","med_diuretic","med_statin")
-if (have_ord_meds) {
-  ord_meds_clean <- ord_meds_controls %>%
-    mutate(Order_Start_Date = as.Date(Order_Start_Date),
-           Order_Stop_Date  = as.Date(Order_Stop_Date)) %>%
-    select(-any_of("delv_date")) %>%
-    inner_join(exposure_df %>% select(CURR_CLINIC, delv_date),
-               by = "CURR_CLINIC", relationship = "many-to-one") %>%
-    filter(Order_Start_Date <= delv_date,
-           is.na(Order_Stop_Date) | Order_Stop_Date >= (delv_date - 30))
-  med_class_flag <- function(df, pattern, label) {
-    df %>% filter(str_detect(Order_Name, regex(pattern, ignore_case = TRUE)) |
-                  str_detect(Med_Generic, regex(pattern, ignore_case = TRUE))) %>%
-      distinct(CURR_CLINIC) %>% mutate(!!label := TRUE)
-  }
-  meds_wide <- list(
-    med_class_flag(ord_meds_clean, "metformin", "med_metformin"),
-    med_class_flag(ord_meds_clean, "insulin", "med_insulin"),
-    med_class_flag(ord_meds_clean, "empagliflozin|dapagliflozin|canagliflozin|ertugliflozin", "med_sglt2"),
-    med_class_flag(ord_meds_clean, "lisinopril|enalapril|ramipril|captopril|benazepril", "med_acei"),
-    med_class_flag(ord_meds_clean, "losartan|valsartan|olmesartan|telmisartan|irbesartan|candesartan", "med_arb"),
-    med_class_flag(ord_meds_clean, "metoprolol|atenolol|carvedilol|bisoprolol|propranolol|labetalol|nebivolol", "med_betablocker"),
-    med_class_flag(ord_meds_clean, "amlodipine|nifedipine|diltiazem|verapamil|felodipine", "med_ccb"),
-    med_class_flag(ord_meds_clean, "hydrochlorothiazide|hctz|furosemide|spironolactone|chlorthalidone|bumetanide", "med_diuretic"),
-    med_class_flag(ord_meds_clean, "atorvastatin|simvastatin|rosuvastatin|pravastatin|lovastatin|pitavastatin", "med_statin")
-  ) %>% reduce(full_join, by = "CURR_CLINIC") %>%
-    mutate(across(starts_with("med_"), ~ coalesce(., FALSE)))
-} else {
-  cat("Ordered meds: not available for controls — emitting FALSE columns.\n")
-  meds_wide <- tibble(CURR_CLINIC = cohort_clean$CURR_CLINIC)
-  for (mc in med_cols) meds_wide[[mc]] <- FALSE
+ord_meds_clean <- ord_meds %>%
+  mutate(Order_Start_Date = as.Date(Order_Start_Date),
+         Order_Stop_Date  = as.Date(Order_Stop_Date)) %>%
+  select(-any_of("delv_date")) %>%
+  inner_join(exposure_df %>% select(CURR_CLINIC, delv_date),
+             by = "CURR_CLINIC", relationship = "many-to-one") %>%
+  filter(Order_Start_Date <= delv_date,
+         is.na(Order_Stop_Date) | Order_Stop_Date >= (delv_date - 30))
+
+med_class_flag <- function(df, pattern, label) {
+  df %>% filter(str_detect(Order_Name, regex(pattern, ignore_case = TRUE)) |
+                str_detect(Med_Generic, regex(pattern, ignore_case = TRUE))) %>%
+    distinct(CURR_CLINIC) %>% mutate(!!label := TRUE)
 }
+
+meds_wide <- list(
+  med_class_flag(ord_meds_clean, "metformin", "med_metformin"),
+  med_class_flag(ord_meds_clean, "insulin", "med_insulin"),
+  med_class_flag(ord_meds_clean, "empagliflozin|dapagliflozin|canagliflozin|ertugliflozin", "med_sglt2"),
+  med_class_flag(ord_meds_clean, "lisinopril|enalapril|ramipril|captopril|benazepril", "med_acei"),
+  med_class_flag(ord_meds_clean, "losartan|valsartan|olmesartan|telmisartan|irbesartan|candesartan", "med_arb"),
+  med_class_flag(ord_meds_clean, "metoprolol|atenolol|carvedilol|bisoprolol|propranolol|labetalol|nebivolol", "med_betablocker"),
+  med_class_flag(ord_meds_clean, "amlodipine|nifedipine|diltiazem|verapamil|felodipine", "med_ccb"),
+  med_class_flag(ord_meds_clean, "hydrochlorothiazide|hctz|furosemide|spironolactone|chlorthalidone|bumetanide", "med_diuretic"),
+  med_class_flag(ord_meds_clean, "atorvastatin|simvastatin|rosuvastatin|pravastatin|lovastatin|pitavastatin", "med_statin")
+) %>% reduce(full_join, by = "CURR_CLINIC") %>%
+  mutate(across(starts_with("med_"), ~ coalesce(., FALSE)))
 
 # =============================================================================
 # 14. ASSEMBLE FINAL ANALYSIS DATA FRAME
@@ -1038,6 +959,13 @@ cat("Baseline weight combined coverage:", sum(!is.na(weight_summary$weight_kg_ba
 
 cat("Baseline source breakdown (weight):\n")
 print(weight_summary %>% count(weight_kg_baseline_source, name = "n"))
+
+cat("\nSmoking status distribution (primary, prefers pre-pregnancy):\n")
+print(table(smoking_clean$smoking_status, useNA = "ifany"))
+
+cat("\nConcomitant med prevalence:\n")
+print(meds_wide %>% summarise(across(starts_with("med_"), ~ sum(., na.rm = TRUE))) %>%
+        pivot_longer(everything(), names_to = "med", values_to = "n") %>% arrange(desc(n)))
 
 analysis_df <- cohort_clean %>%
   left_join(demo_clean,     by = "CURR_CLINIC") %>%
@@ -1091,20 +1019,20 @@ analysis_df <- cohort_clean %>%
     delta_ldl_6m    = lab_ldl_baseline   - lab_ldl_post_6m,
     delta_trig_6m   = lab_trig_baseline  - lab_trig_post_6m
   ) %>%
-  mutate(treatment_group = "Control")   # ensure present after joins
+  mutate(treatment_group = "Control")
 
 # =============================================================================
-# 15. EXPORT  (note: _controls suffix so treatment outputs are not overwritten)
+# 15. EXPORT  (.rds -> rds_processed/ ; .csv -> csv_processed/)
 # =============================================================================
-saveRDS(analysis_df,  file.path(out_dir, "analysis_df_controls.rds"))
-saveRDS(vitals_long,  file.path(out_dir, "vitals_long_controls.rds"))
-saveRDS(labs_long,    file.path(out_dir, "labs_long_controls.rds"))
-saveRDS(events_df,    file.path(out_dir, "events_df_controls.rds"))
+saveRDS(analysis_df,  file.path(out_dir_rds, "analysis_df_controls.rds"))
+saveRDS(vitals_long,  file.path(out_dir_rds, "vitals_long_controls.rds"))
+saveRDS(labs_long,    file.path(out_dir_rds, "labs_long_controls.rds"))
+saveRDS(events_df,    file.path(out_dir_rds, "events_df_controls.rds"))
 
-readr::write_csv(analysis_df, file.path(out_dir, "analysis_df_controls.csv"))
-readr::write_csv(vitals_long, file.path(out_dir, "vitals_long_controls.csv"))
-readr::write_csv(labs_long,   file.path(out_dir, "labs_long_controls.csv"))
-readr::write_csv(events_df,   file.path(out_dir, "events_df_controls.csv"))
+readr::write_csv(analysis_df, file.path(out_dir_csv, "analysis_df_controls.csv"))
+readr::write_csv(vitals_long, file.path(out_dir_csv, "vitals_long_controls.csv"))
+readr::write_csv(labs_long,   file.path(out_dir_csv, "labs_long_controls.csv"))
+readr::write_csv(events_df,   file.path(out_dir_csv, "events_df_controls.csv"))
 
 cat("\n========================================\n")
 cat("FINAL CONTROL DATASET (v4 — delivery-anchored)\n")
@@ -1115,17 +1043,22 @@ cat("Baseline SBP combined:", sum(!is.na(analysis_df$sbp_baseline_combined)), "\
 cat("Baseline Wt  combined:", sum(!is.na(analysis_df$weight_kg_baseline_combined)), "\n")
 cat("Stage 1+ HTN:        ", sum(analysis_df$elevated_bp_any, na.rm = TRUE), "\n")
 cat("Stage 2 HTN:         ", sum(analysis_df$stage2_htn,      na.rm = TRUE), "\n")
-cat("Output dir:          ", out_dir, "\n")
+cat("RDS output dir:      ", out_dir_rds, "\n")
+cat("CSV output dir:      ", out_dir_csv, "\n")
 
-# Column-parity check vs treatment analysis_df (if present) — helps before rbind
-tx_path <- file.path(out_dir, "analysis_df.rds")
-if (file.exists(tx_path)) {
+# Column-parity check vs treatment analysis_df (searches rds_processed then legacy dir)
+tx_candidates <- c(file.path(out_dir_rds, "analysis_df.rds"),
+                   file.path(out_dir,     "analysis_df.rds"))
+tx_path <- tx_candidates[file.exists(tx_candidates)][1]
+if (!is.na(tx_path)) {
   tx <- readRDS(tx_path)
   only_tx   <- setdiff(names(tx), names(analysis_df))
   only_ctrl <- setdiff(names(analysis_df), names(tx))
-  cat("\n--- Schema parity vs treatment analysis_df ---\n")
+  cat("\n--- Schema parity vs treatment analysis_df (", tx_path, ") ---\n", sep = "")
   cat("In treatment only (", length(only_tx), "):\n", sep=""); print(only_tx)
   cat("In controls only  (", length(only_ctrl), "):\n", sep=""); print(only_ctrl)
+} else {
+  cat("\n(Treatment analysis_df.rds not found — skipping schema parity check.)\n")
 }
 
 invisible(list(
