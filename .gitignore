@@ -52,7 +52,11 @@ rsconnect/
 # Sensitive clinical datasets (DO NOT UPLOAD)
 # ============================================
 
-Perinatal Outcomes_files/Datasets/data_processed/*.csv
+# SAS datasets
+Perinatal Outcomes_files/Datasets/
+Perinatal Outcomes_files/Datasets/**/*.sas7bdat
 
-# Ignoring CSV files (too heavy)
-data_processed/*.csv
+# CSV files (too heavy)
+data_processed/csv_processed/
+data_processed/ctrl_csv_processed/
+**/*.csv
